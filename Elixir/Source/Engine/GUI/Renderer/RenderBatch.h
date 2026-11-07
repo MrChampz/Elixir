@@ -60,13 +60,19 @@ namespace Elixir::GUI
         int ZOrder = 0;
 
         /** Rectangular clip inherited from ancestor widgets. */
-        SRect ClipRect{ { -1.0f, -1.0f }, { -1.0f, -1.0f } };
+        SRect ClipRect{
+            .Position = { -1.0f, -1.0f },
+            .Size = { -1.0f, -1.0f }
+        };
 
         /** Rounded clip bounds, retained separately from ancestor rectangular clipping. */
-        SRect RoundedClipRect{{-1, -1}, {-1, -1}};
+        SRect RoundedClipRect{
+            .Position = { -1, -1 },
+            .Size = { -1, -1 }
+        };
 
         /** Clip radii in top-left, top-right, bottom-right, bottom-left order. */
-        glm::vec4 ClipCornerRadius{0};
+        glm::vec4 ClipCornerRadius{ 0 };
     };
 
     /**

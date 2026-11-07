@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Engine/Aether/SystemInstance.h>
-#include <span>
 #include <Engine/Aether/Rendering/SystemInstanceRetirementQueue.h>
 
 namespace Elixir
@@ -194,8 +193,12 @@ namespace Elixir::Aether
     protected:
         /**
          * @brief Simulates ordered steps and renders only their final result.
-         * @param steps Step durations in seconds. An empty span uses the current frame timestep.
-         * @param initialTime Simulation time before the first explicit step, in seconds.
+         * @param camera Camera used to prepare the final particle rendering.
+         * @param sceneTarget Valid color target that defines the render area.
+         * @param steps Finite, nonnegative step durations in seconds, in execution order.
+         * An empty span uses the current frame timestep.
+         * @param initialTime Finite, nonnegative time before the first explicit step.
+         * Measured in seconds and ignored when steps is empty.
          * @pre BeginFrame() was called once for the current graphics frame.
          * @pre sceneTarget is a valid color target.
          */

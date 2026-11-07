@@ -16,7 +16,7 @@
 #include <Engine/Aether/System.h>
 #include <Engine/Aether/Modules/KillOutsideBounds.h>
 #include <Engine/Aether/Modules/SizeOverLife.h>
-#include <Engine/Aether/Modules/ApplyCurlNoise.h>
+#include <Engine/Aether/Modules/CurlNoiseForce.h>
 #include <Engine/Aether/Modules/ApplyGravity.h>
 #include <Engine/Materials/MaterialSystem.h>
 #include <Engine/Materials/MaterialRegistry.h>
@@ -140,9 +140,12 @@ namespace
         uint32_t Generation = 1;
         uint32_t SolverIterations = 16;
         uint32_t InstanceIndex = 0;
-        uint32_t EmitterIndex = 0;
+        uint32_t OperationOffset = 0;
+        uint32_t OperationCount = 0;
     };
-    static_assert(sizeof(SStrandTestConstants) == 108);
+    static_assert(sizeof(SStrandTestConstants) == 112);
+    static_assert(offsetof(SStrandTestConstants, OperationOffset) == 104);
+    static_assert(offsetof(SStrandTestConstants, OperationCount) == 108);
     static_assert(offsetof(SStrandTestConstants, ParticleOffset) == 64);
     static_assert(offsetof(SStrandTestConstants, Generation) == 92);
 
@@ -174,23 +177,23 @@ namespace
         SCompiledModuleData program;
         ModuleCompileContext compile(program, compiledParameters, "Force", 1);
         ApplyGravity({0, -0.15f, 0}).Compile(compile);
-        ApplyCurlNoise().BindParameters("CurlStrength", "", "", "").Compile(compile);
-        std::array<uint32_t, 20> emitterData{};
-        emitterData[17] = uint32_t(program.Operations.size());
+        CurlNoiseForce().BindParameters("CurlStrength", "", "", "").Compile(compile);
         std::array<uint32_t, 15> instanceData{};
-        const auto emitterBuffer = DynamicStorageBuffer::Create(context, sizeof(emitterData), emitterData.data());
         const auto instanceBuffer = DynamicStorageBuffer::Create(context, sizeof(instanceData), instanceData.data());
         const auto operationBuffer = DynamicStorageBuffer::Create(context, program.Operations.size() * sizeof(SGPUOperation), program.Operations.data());
         const auto operandBuffer = DynamicStorageBuffer::Create(context, program.Operands.size() * sizeof(uint32_t), program.Operands.data());
         const auto constantBuffer = DynamicStorageBuffer::Create(context, program.Constants.size() * sizeof(uint32_t), program.Constants.data());
         const auto parameterBuffer = DynamicStorageBuffer::Create(context, words.size() * sizeof(uint32_t), words.data());
-        shader->BindStorageBuffer("emitters", emitterBuffer);
         shader->BindStorageBuffer("instances", instanceBuffer);
         shader->BindStorageBuffer("operations", operationBuffer);
         shader->BindStorageBuffer("operands", operandBuffer);
         shader->BindStorageBuffer("constants", constantBuffer);
         shader->BindStorageBuffer("parameters", parameterBuffer);
         SStrandTestConstants pc;
+        pc.OperationCount = uint32_t(program.Operations.size());
+        const auto ranges = static_cast<VulkanShader*>(shader.get())->GetPushConstantRanges();
+        ASSERT_EQ(ranges.size(), 1u);
+        EXPECT_EQ(ranges[0].size, sizeof(SStrandTestConstants));
         shader->SetPushConstant("pc", &pc, sizeof(pc));
         shader->BindStorageBuffer("particles", particles);
         shader->BindStorageBuffer("strandPoints", points);
@@ -262,12 +265,33 @@ namespace
         EXPECT_GT(glm::length(glm::vec3(withCurl[30 * 3]) - glm::vec3(gravityOnly[30 * 3])), 0.000001f);
         EXPECT_EQ(std::bit_cast<uint32_t>(withCurl[0].w), stamp);
         // Removing the point operation stream removes both authored forces.
-        emitterData[17] = 0;
-        emitterBuffer->UpdateData(emitterData.data(), sizeof(emitterData));
+        pc.OperationCount = 0;
         points->UpdateData(initial.data(), initial.size() * sizeof(glm::vec4));
         dispatch(0.1f);
         const auto noForces = read();
         EXPECT_NEAR(glm::length(glm::vec3(noForces[30 * 3]) - glm::vec3(initial[30 * 3])), 0, 0.0001f);
+        // A nonzero range skips gravity and runs only the disabled curl module.
+        words[0] = std::bit_cast<uint32_t>(0.0f);
+        parameterBuffer->UpdateData(words.data(), words.size() * sizeof(uint32_t));
+        pc.OperationOffset = 1;
+        pc.OperationCount = uint32_t(program.Operations.size()) - pc.OperationOffset;
+        points->UpdateData(initial.data(), initial.size() * sizeof(glm::vec4));
+        dispatch(0.1f);
+        const auto skippedGravity = read();
+        EXPECT_NEAR(
+            glm::length(glm::vec3(skippedGravity[30 * 3]) - glm::vec3(initial[30 * 3])),
+            0,
+            0.0001f
+        );
+        pc.OperationOffset = 0;
+        pc.OperationCount = 1;
+        points->UpdateData(initial.data(), initial.size() * sizeof(glm::vec4));
+        dispatch(0.1f);
+        EXPECT_GT(
+            glm::length(glm::vec3(read()[30 * 3]) - glm::vec3(skippedGravity[30 * 3])),
+            0.000001f
+        );
+        pc.OperationCount = 0;
         pc.Generation = 2;
         dispatch(0);
         const auto reset = read();
@@ -390,7 +414,7 @@ TEST(VulkanShaderTest, InitialBurstRunsOnceAndPeriodicAndTriggeredBurstsKeepThei
     const auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
     ASSERT_TRUE(pipeline);
     // Mirror the emitter, instance and scheduler layouts with native four-byte words.
-    std::array<uint32_t, 20> emitter{};
+    std::array<uint32_t, 16> emitter{};
     emitter[1] = 64; // particle capacity
     emitter[12] = 64; // burst count
     std::array<uint32_t, 15> instance{};
@@ -510,10 +534,10 @@ TEST(VulkanShaderTest, LifetimeDeathPolicyPreservesSimulationNormalizedAgeAndExp
     ModuleCompileContext compiler(program, {}, "Policy", 1.0f);
     KillOutsideBounds({-1, -1, -1}, {1, 1, 1}).Compile(compiler);
     SizeOverLife(2, 6).Compile(compiler);
-    ApplyCurlNoise(1, 2.2f, {0, 0, 0}, 17).Compile(compiler);
-    ASSERT_EQ(program.Operations.size(), 3);
+    CurlNoiseForce(1, 2.2f, {0, 0, 0}, 17).Compile(compiler);
+    ASSERT_EQ(program.Operations.size(), 13);
     std::array<glm::vec4, 30> roots{};
-    std::array<uint32_t, 100> emittersData{};
+    std::array<uint32_t, 80> emittersData{};
     for (uint32_t index = 0; index < 5; ++index)
     {
         roots[index * 6] = {0, 0, 0, 16};
@@ -521,17 +545,17 @@ TEST(VulkanShaderTest, LifetimeDeathPolicyPreservesSimulationNormalizedAgeAndExp
         roots[index * 6 + 2].y = 1;
         roots[index * 6 + 4] = {1, 1, 1, 1};
         roots[index * 6 + 5] = {std::bit_cast<float>(index), 0, 0.25f, 1};
-        emittersData[index * 20 + 1] = 1;
-        // The lifetime flag remains at word 14 in the 80-byte emitter layout.
-        emittersData[index * 20 + 14] = index == 1 ? 1 : 0;
+        emittersData[index * 16 + 1] = 1;
+        // The lifetime flag remains at word 14 in the 64-byte emitter layout.
+        emittersData[index * 16 + 14] = index == 1 ? 1 : 0;
     }
     roots[2 * 6].x = 2; // explicit kill outside the box
-    emittersData[2 * 20 + 4] = 0;
-    emittersData[2 * 20 + 5] = 1;
-    emittersData[3 * 20 + 4] = 1;
-    emittersData[3 * 20 + 5] = 1;
-    emittersData[4 * 20 + 4] = 2;
-    emittersData[4 * 20 + 5] = 1;
+    emittersData[2 * 16 + 4] = 0;
+    emittersData[2 * 16 + 5] = 1;
+    emittersData[3 * 16 + 4] = 1;
+    emittersData[3 * 16 + 5] = 1;
+    emittersData[4 * 16 + 4] = 2;
+    emittersData[4 * 16 + 5] = 11;
     std::array<uint32_t, 15> instance{};
     instance[10] = 5;
     instance[11] = 5;
@@ -746,5 +770,98 @@ TEST(VulkanShaderTest, ConvertsRuntimeScalarParametersToUIntWithAndWithoutCache)
         EXPECT_EQ(result[1], UINT32_MAX);
         EXPECT_EQ(result[2], UINT32_MAX);
         EXPECT_EQ(result[3], expected);
+    }
+}
+
+TEST(VulkanShaderTest, ComposedCurlNoisePreservesForceAndRuntimeBindings)
+{
+    const auto context = VulkanTestContext::Get().GetGraphicsContext();
+    ShaderLoader loader(context);
+    const auto shader = loader.LoadShader(
+        ELIXIR_TEST_SHADER_DIR,
+        "ComposedCurlNoise",
+        EShaderStage::Compute
+    );
+    ASSERT_TRUE(shader);
+    const auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
+    ASSERT_TRUE(pipeline);
+    using namespace Aether::Core;
+    using namespace Aether::Modules;
+    const std::vector<SParameter> authored{
+        {"Strength", EParameterType::Float, glm::vec4(1.7f, 0, 0, 0)},
+        {"Frequency", EParameterType::Float, glm::vec4(2.2f, 0, 0, 0)},
+        {"Scroll", EParameterType::Float3, glm::vec4(0.12f, 0.09f, 0.07f, 0)},
+        {"Seed", EParameterType::UInt, glm::vec4(std::bit_cast<float>(UINT32_MAX), 0, 0, 0)}
+    };
+    const auto definitions = CompileParameters(authored);
+    auto words = PackParameterValues(definitions);
+    SCompiledModuleData program;
+    ModuleCompileContext compiler(program, definitions, "Curl", 1.0f);
+    CurlNoiseForce curl;
+    curl.BindParameters("Strength", "Frequency", "Scroll", "Seed");
+    curl.Compile(compiler);
+    ASSERT_TRUE(compiler.IsValid());
+    const auto operations = StorageBuffer::Create(
+        context,
+        program.Operations.size() * sizeof(SGPUOperation),
+        program.Operations.data()
+    );
+    const auto operands = StorageBuffer::Create(
+        context,
+        program.Operands.size() * sizeof(uint32_t),
+        program.Operands.data()
+    );
+    const auto constants = StorageBuffer::Create(
+        context,
+        program.Constants.size() * sizeof(uint32_t),
+        program.Constants.data()
+    );
+    const auto parameters = DynamicStorageBuffer::Create(
+        context,
+        words.size() * sizeof(uint32_t)
+    );
+    const auto output = StorageBuffer::Create(context, 3 * sizeof(glm::vec4));
+    auto info = StagingBuffer::CreateBufferInfo(3 * sizeof(glm::vec4), nullptr);
+    info.Usage = EBufferUsage::TransferDst;
+    const Ref<StagingBuffer> readback = CreateRef<VulkanStagingBuffer>(context, info);
+    shader->BindStorageBuffer("operations", operations);
+    shader->BindStorageBuffer("operands", operands);
+    shader->BindStorageBuffer("constants", constants);
+    shader->BindStorageBuffer("parameters", parameters);
+    shader->BindStorageBuffer("results", output);
+    const std::array values{
+        glm::vec2(1.7f, 2.2f),
+        glm::vec2(0.0f, 0.0f),
+        glm::vec2(-2.0f, -3.0f),
+        glm::vec2(1.7f, -3.0f),
+        glm::vec2(0.65f, 0.0000001f)
+    };
+    for (uint32_t sample = 0; sample < values.size() * 2; ++sample)
+    {
+        const auto value = values[sample % values.size()];
+        words[5] = sample < values.size() ? 17u : UINT32_MAX;
+        SCOPED_TRACE(sample);
+        words[0] = std::bit_cast<uint32_t>(value.x);
+        words[1] = std::bit_cast<uint32_t>(value.y);
+        parameters->UpdateData(words.data(), words.size() * sizeof(uint32_t));
+        const auto command = context->GetUploadCommandBuffer();
+        command->Begin();
+        parameters->Barrier(
+            command,
+            EPipelineStage::ComputeShader,
+            EPipelineAccess::ShaderRead
+        );
+        output->Barrier(command, EPipelineStage::ComputeShader, EPipelineAccess::ShaderWrite);
+        pipeline->Bind(command);
+        command->Dispatch(1);
+        output->Barrier(command, EPipelineStage::Transfer, EPipelineAccess::TransferRead);
+        output->Copy(command, readback);
+        command->Flush();
+        std::array<glm::vec4, 3> result{};
+        std::memcpy(result.data(), readback->Map(), sizeof(result));
+        readback->Unmap();
+        for (uint32_t component = 0; component < 4; ++component)
+            EXPECT_NEAR(result[0][component], result[1][component], 0.0001f);
+        EXPECT_EQ(result[2], glm::vec4(0.2f, 0.3f, 0.4f, 0.0f));
     }
 }

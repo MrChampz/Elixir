@@ -78,13 +78,23 @@ void AppendTriggerEvent(
 }
 
 // Publishes the trigger targets associated with one emitter burst.
-void AppendBurstTargets(SGPUSystemInstance instance, SGPUEmitter emitter, uint writeBufferIndex)
+void AppendBurstTargets(
+    SGPUSystemInstance instance,
+    SGPUEmitter emitter,
+    uint writeBufferIndex
+)
 {
     for (uint targetIndex = 0; targetIndex < emitter.TriggerTargetCount; ++targetIndex)
     {
         SGPUTriggerTarget target = triggerTargets[emitter.TriggerTargetOffset + targetIndex];
-        AppendTriggerEvent(instance, writeBufferIndex, target.TargetEmitterIndex,
-            target.DelaySeconds, target.BurstCount);
+
+        AppendTriggerEvent(
+            instance,
+            writeBufferIndex,
+            target.TargetEmitterIndex,
+            target.DelaySeconds,
+            target.BurstCount
+        );
     }
 }
 

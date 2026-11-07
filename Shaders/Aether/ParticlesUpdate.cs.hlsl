@@ -73,6 +73,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     float age = state.Age + dt;
     float lifetime = max(state.Lifetime, 0.001);
     float life = clamp(age / lifetime, 0.0, 1.0);
+
     // Lifetime still drives normalized age; its expiry only kills when enabled.
     bool kill = emitter.KillOnLifetimeExpired != 0u && age >= lifetime;
 

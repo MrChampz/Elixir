@@ -5,7 +5,10 @@
 
 namespace Elixir::Aether::Core::Operations
 {
-    /** @brief Defines the arguments and allowed destinations for Mul. */
+    /**
+     * Defines component-wise multiplication with scalar broadcasting.
+     * Scalar operands multiply every component of a temporary destination.
+     */
     class Mul final : public Operation
     {
     public:

@@ -1,11 +1,4 @@
-float3 SafeNormalize(float3 value, float3 fallback)
-{
-    float lengthSquared = dot(value, value);
-    if (lengthSquared < 0.000001)
-        return fallback;
-
-    return value * rsqrt(lengthSquared);
-}
+#include "Math.hlsl"
 
 bool IsAlive(SGPUParticle particle)
 {

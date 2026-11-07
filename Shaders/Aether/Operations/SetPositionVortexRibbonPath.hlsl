@@ -12,7 +12,7 @@ static const uint SetPositionVortexRibbonPath_PulseSpeed = 6u;
 static const uint SetPositionVortexRibbonPath_CurlAmplitude = 7u;
 static const uint SetPositionVortexRibbonPath_DepthAmplitude = 8u;
 
-#include "OperationMath.hlsl"
+#include "../Math.hlsl"
 
 struct VortexRibbonPathParams
 {

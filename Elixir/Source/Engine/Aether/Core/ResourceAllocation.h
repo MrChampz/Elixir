@@ -29,15 +29,22 @@ namespace Elixir::Aether::Core
         uint32_t ParticleCapacity = 1'000'000;
         uint32_t EmitterCapacity = 4'096;
         uint32_t OperationCapacity = 65'536;
+
         /** Maximum number of four-byte operand references. */
         uint32_t OperandCapacity = 262'144;
+
         /** Maximum number of four-byte literal words. */
         uint32_t ConstantCapacity = 262'144;
+
         /** Maximum number of four-byte parameter words across live instances. */
         uint32_t ParameterWordCapacity = 65'536;
         uint32_t TriggerTargetCapacity = 4'096;
         uint32_t TriggerEventCapacityPerEmitter = 64;
-        /** @brief Maximum persistent strand points shared by live instances; each point uses 48 bytes. */
+
+        /**
+         * Maximum persistent strand points shared by live instances; each point uses 48
+         * bytes.
+         */
         uint32_t StrandPointCapacity = 262'144;
     };
 
@@ -54,20 +61,26 @@ namespace Elixir::Aether::Core
         uint32_t InstanceIndex = UINT32_MAX;
         EParticleStateLayout ParticleStateLayout = EParticleStateLayout::CoreV1;
         uint32_t Generation = 1;
+
         /** Identifies the shared program reservation owned by this allocation. */
         uint64_t ProgramAllocationId = 0;
+
         /** Upload the immutable program only when its reservation is first created. */
         bool UploadProgram = false;
 
         SBufferRange Particles;
-        /** @brief Persistent strand point range owned by this instance. */
+
+        /** Persistent strand point range owned by this instance. */
         SBufferRange StrandPoints;
+
         SBufferRange Emitters;
         SBufferRange Operations;
         SBufferRange Operands;
         SBufferRange Constants;
+
         /** Instance parameter range in four-byte words, relative to the parameter buffer. */
         SBufferRange Parameters;
+
         SBufferRange TriggerTargets;
 
         SBufferRange EmitterStates;

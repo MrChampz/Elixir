@@ -7,16 +7,6 @@ namespace Elixir::Aether
 {
     System::System(const std::string& name) : m_Name(name) {}
 
-    void System::Swap(System& other)
-    {
-        using std::swap;
-        swap(m_Name, other.m_Name);
-        swap(m_Parameters, other.m_Parameters);
-        swap(m_Curves, other.m_Curves);
-        swap(m_ColorCurves, other.m_ColorCurves);
-        swap(m_Emitters, other.m_Emitters);
-    }
-
     Ref<SystemInstance> System::CreateInstance()
     {
         return CreateRef<SystemInstance>(shared_from_this());
@@ -41,6 +31,16 @@ namespace Elixir::Aether
         }
 
         return nullptr;
+    }
+
+    void System::Swap(System& other)
+    {
+        using std::swap;
+        swap(m_Name, other.m_Name);
+        swap(m_Parameters, other.m_Parameters);
+        swap(m_Curves, other.m_Curves);
+        swap(m_ColorCurves, other.m_ColorCurves);
+        swap(m_Emitters, other.m_Emitters);
     }
 
     std::vector<SParameter> System::BuildExposedParameters() const
@@ -172,11 +172,21 @@ namespace Elixir::Aether
 
             auto compiled = std::move(*result);
             compiled.LocalParticleOffset = localParticleOffset;
-            compiled.LocalStrandPointOffset = system.TotalStrandPoints;
 
             if (compiled.RenderMode == EParticleRenderMode::Strand)
             {
-                const uint64_t count = uint64_t(compiled.MaxParticles) * compiled.Strand.PointCount;
+                auto strand = emitter->CompileStrand(
+                    system.Parameters,
+                    system.ModuleData,
+                    compiled.GravityScale
+                );
+                if (!strand)
+                    return std::nullopt;
+
+                strand->EmitterIndex = uint32_t(system.Emitters.size());
+                strand->LocalPointOffset = system.TotalStrandPoints;
+                const uint64_t count = uint64_t(compiled.MaxParticles) *
+                    strand->SimulationConfig.PointCount;
                 if (count > UINT32_MAX - system.TotalStrandPoints)
                 {
                     EE_CORE_ERROR("Aether strand point count exceeds the addressable range.");
@@ -187,6 +197,7 @@ namespace Elixir::Aether
                 }
 
                 system.TotalStrandPoints += uint32_t(count);
+                system.Strands.push_back(std::move(*strand));
             }
 
             localParticleOffset += compiled.MaxParticles;

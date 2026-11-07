@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Engine/Aether/System.h>
-#include <string_view>
 
 namespace Elixir::Aether::Effect
 {
@@ -19,6 +18,11 @@ namespace Elixir::Aether::Effect
      */
     ELIXIR_API Ref<System> LoadEffectFile(const std::filesystem::path& filepath);
 
-    /** @brief Parses effect authoring data from memory and optionally returns the validation error. */
-    ELIXIR_API Ref<System> LoadEffectText(std::string_view source, std::string* error = nullptr);
+    /**
+     * @brief Parses effect authoring data from JSON in memory.
+     * @param source JSON definition of the effect.
+     * @param error Optional destination for parse or validation errors; cleared before parsing.
+     * @return The parsed System, or null when the definition is invalid.
+     */
+    ELIXIR_API Ref<System> ParseEffect(std::string_view source, std::string* error = nullptr);
 }

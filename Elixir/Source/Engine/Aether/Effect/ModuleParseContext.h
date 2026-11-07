@@ -1,15 +1,9 @@
 #pragma once
 
-#include <cmath>
-#include <format>
-#include <limits>
-#include <optional>
+#include <Engine/Aether/Core/DynamicInput.h>
 
 #include <magic_enum/magic_enum.hpp>
 #include <simdjson.h>
-
-#include <Engine/Aether/Core/DynamicInput.h>
-#include <Engine/Aether/Modules/Module.h>
 
 namespace Elixir::Aether::Effect
 {
@@ -240,8 +234,16 @@ namespace Elixir::Aether::Effect
                 }
 
                 size_t count = 0;
-                if (array.count_elements().get(count)) { Fail("Invalid vector array '{}'.", key); return result; }
-                result.Value = allowFloat3 && count == 3 ? glm::vec4(ParseFloatVec<3>(array), 0) : ParseFloatVec<4>(array);
+                if (array.count_elements().get(count))
+                {
+                    Fail("Invalid vector array '{}'.", key);
+                    return result;
+                }
+
+                result.Value = allowFloat3 && count == 3
+                    ? glm::vec4(ParseFloatVec<3>(array), 0)
+                    : ParseFloatVec<4>(array);
+
                 return result;
             }
 

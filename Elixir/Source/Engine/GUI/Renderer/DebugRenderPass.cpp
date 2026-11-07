@@ -11,11 +11,18 @@ namespace Elixir::GUI
         const ShaderLoader* shaderLoader,
         const float dpiScale,
         const Ref<UniformBuffer>& perFrameCB
-    ) : m_GeometrySlots(*context), m_DPIScale(dpiScale), m_PerFrameConstantBuffer(perFrameCB), m_GraphicsContext(context)
+    ) : m_GeometrySlots(*context),
+        m_DPIScale(dpiScale),
+        m_PerFrameConstantBuffer(perFrameCB),
+        m_GraphicsContext(context)
     {
         EE_CORE_TRACE("Initializing GUI: DebugRenderPass.")
+
         InitRenderPass(shaderLoader);
-        if (!m_Shader || !m_Pipeline) return;
+
+        if (!m_Shader || !m_Pipeline)
+            return;
+
         BindShaderParameters();
     }
 
@@ -44,30 +51,48 @@ namespace Elixir::GUI
     void DebugRenderPass::Bind(const Ref<CommandBuffer>& cmd)
     {
         m_CanRender = false;
-        if (!m_Shader || !m_Pipeline) return;
+
+        if (!m_Shader || !m_Pipeline)
+            return;
+
         m_Pipeline->Bind(cmd);
+
         auto* geometry = m_GeometrySlots.UpdateCurrent([this](SGeometryBuffer& slot)
         {
-            if (m_Vertices.empty()) return true;
+            if (m_Vertices.empty())
+                return true;
+
             if (!slot.Buffer || m_Vertices.size() > slot.Capacity)
             {
                 const size_t capacity = GrowBufferCapacity(slot.Capacity, m_Vertices.size());
-                auto buffer = DynamicVertexBuffer::Create(m_GraphicsContext, capacity * sizeof(SVertex));
+
+                auto buffer = DynamicVertexBuffer::Create(
+                    m_GraphicsContext,
+                    capacity * sizeof(SVertex)
+                );
+
                 if (!buffer || !buffer->IsValid())
                 {
                     EE_CORE_ERROR("Failed to allocate GUI geometry buffer.")
                     return false;
                 }
+
                 buffer->SetLayout(m_BufferLayout);
+
                 // The current slot's fence has completed; its previous buffer can be released.
                 slot.Buffer = std::move(buffer);
                 slot.Capacity = capacity;
             }
+
             slot.Buffer->UpdateData(m_Vertices.data(), m_Vertices.size() * sizeof(SVertex));
+
             return true;
         });
+
         m_CanRender = geometry && geometry->Buffer;
-        if (m_CanRender) geometry->Buffer->Bind(cmd);
+
+        if (m_CanRender)
+            geometry->Buffer->Bind(cmd);
     }
 
     void DebugRenderPass::Render(

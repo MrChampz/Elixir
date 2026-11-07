@@ -11,7 +11,15 @@ void Mul(
 )
 {
     float4 value = GetAttribute(context.Attributes, resolver.Operation.Target);
-    value *= resolver.ReadValue(Mul_Value);
+    float4 multiplier = resolver.ReadValue(Mul_Value);
+
+    // Scalar operands scale every component; vector operands multiply component by component.
+    uint format = GetOperandFormat(resolver.GetOperandReference(Mul_Value));
+
+    if (format == OperandFormat_Float)
+        multiplier = multiplier.xxxx;
+
+    value *= multiplier;
 
     SetAttribute(
         context.Attributes,

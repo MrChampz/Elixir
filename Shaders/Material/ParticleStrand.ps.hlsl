@@ -42,6 +42,7 @@ struct MaterialPushConstants
     uint MaterialIndex;
     uint Padding;
 };
+
 [[vk::push_constant]]
 MaterialPushConstants pc;
 

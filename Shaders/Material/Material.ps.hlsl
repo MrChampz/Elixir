@@ -231,11 +231,13 @@ float3 SampleTransmission(float2 pixel, float roughness, float ior)
 
     float radius = filteredRoughness * filteredRoughness * min(width, height) * 0.04f;
     if (radius < 0.5f)
+    {
         return sceneColorTexture.SampleLevel(
             sceneColorSampler,
             clamp(uv, halfTexel, 1.0f - halfTexel),
             0
         ).rgb;
+    }
 
     float3 result = 0.0f.xxx;
 

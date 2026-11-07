@@ -5,7 +5,7 @@
 #include <Engine/Materials/Rendering/MaterialResolver.h>
 #include <Engine/Aether/Modules/Module.h>
 #include <Engine/Aether/Core/ParameterStore.h>
-#include <Engine/Aether/Core/StrandSettings.h>
+#include <Engine/Aether/Strand.h>
 #include <Engine/Aether/Core/CurveStore.h>
 #include <Engine/Aether/Core/ColorCurveStore.h>
 #include <Engine/Aether/Effect/MaterialDescription.h>
@@ -39,11 +39,6 @@ namespace Elixir::Aether
         EParticleRenderMode RenderMode = EParticleRenderMode::Sprite;
         EParticleSimulationSpace SimulationSpace = EParticleSimulationSpace::World;
 
-        /** @brief Physics and tube settings copied from the authored emitter. */
-        SStrandSettings Strand;
-        /** @brief First strand point relative to the containing system point range. */
-        uint32_t LocalStrandPointOffset = 0;
-
         /** @brief Removes particles when their age reaches Lifetime; false keeps them alive until another kill condition. */
         bool KillOnLifetimeExpired = true;
 
@@ -70,10 +65,6 @@ namespace Elixir::Aether
         uint32_t SpawnOperationCount = 0u;
         uint32_t UpdateOperationOffset = 0u;
         uint32_t UpdateOperationCount = 0u;
-        /** @brief First update instruction executed for free strand points. */
-        uint32_t StrandUpdateOperationOffset = 0;
-        /** @brief Number of update instructions executed for free strand points. */
-        uint32_t StrandUpdateOperationCount = 0;
 
         bool operator==(const SCompiledEmitter& other) const noexcept
         {
@@ -163,14 +154,31 @@ namespace Elixir::Aether
          */
         void SetRenderMode(const EParticleRenderMode mode) { m_RenderMode = mode; }
 
-        /** @brief Returns the physics and tube settings for this emitter. */
-        const SStrandSettings& GetStrandSettings() const { return m_Strand; }
+        /** @brief Returns the point-chain and solver configuration for this emitter. */
+        const Simulation::SStrandSimulationConfig& GetStrandSimulationConfig() const
+        {
+            return m_StrandSimulation;
+        }
 
         /**
-         * @brief Updates the physics and tube settings for this emitter.
-         * @return False when values are invalid; the previous settings remain unchanged.
+         * @brief Updates the point-chain and solver configuration for this emitter.
+         * @param config Solver values to validate and copy.
+         * @return False for invalid values, leaving the previous configuration unchanged.
          */
-        bool SetStrandSettings(const SStrandSettings& settings);
+        bool SetStrandSimulationConfig(const Simulation::SStrandSimulationConfig& config);
+
+        /** @brief Returns the tube thickness and tessellation for this emitter. */
+        const Rendering::SStrandRenderConfig& GetStrandRenderConfig() const
+        {
+            return m_StrandRender;
+        }
+
+        /**
+         * @brief Updates the tube thickness and tessellation for this emitter.
+         * @param config Visual values to validate and copy.
+         * @return False for invalid values, leaving the previous configuration unchanged.
+         */
+        bool SetStrandRenderConfig(const Rendering::SStrandRenderConfig& config);
 
         /** @brief Reports whether lifetime expiry removes particles from this emitter. */
         bool ShouldKillOnLifetimeExpired() const { return m_KillOnLifetimeExpired; }
@@ -356,11 +364,25 @@ namespace Elixir::Aether
             SCompiledModuleData& program
         ) const;
 
+        /**
+         * @brief Compiles the strand configuration and point-update instructions.
+         * @param params Compiled parameters available to module bindings.
+         * @param program Shared operation tables; discard them if compilation fails.
+         * @param gravityScale Resolved gravity multiplier for this emitter.
+         * @return Compiled strand data, or no value if a module fails to compile.
+         */
+        std::optional<SCompiledStrand> CompileStrand(
+            const std::vector<SCompiledParameter>& params,
+            SCompiledModuleData& program,
+            float gravityScale
+        ) const;
+
         UUID m_Id;
         std::string m_Name;
         EParticleRenderMode m_RenderMode = EParticleRenderMode::Sprite;
         EParticleSimulationSpace m_SimulationSpace = EParticleSimulationSpace::World;
-        SStrandSettings m_Strand;
+        Simulation::SStrandSimulationConfig m_StrandSimulation;
+        Rendering::SStrandRenderConfig m_StrandRender;
         bool m_KillOnLifetimeExpired = true;
         std::optional<Effect::SMaterialDescription> m_MaterialDescription;
         Ref<MaterialInstance> m_Material;

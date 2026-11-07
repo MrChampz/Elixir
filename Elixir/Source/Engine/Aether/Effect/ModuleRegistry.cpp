@@ -3,8 +3,7 @@
 
 #include <Engine/Aether/Modules/ApplyAngularVelocity.h>
 #include <Engine/Aether/Modules/ApplyGravity.h>
-#include <Engine/Aether/Modules/ApplyCurlNoise.h>
-#include <magic_enum/magic_enum.hpp>
+#include <Engine/Aether/Modules/CurlNoiseForce.h>
 #include <Engine/Aether/Modules/ApplyLinearDrag.h>
 #include <Engine/Aether/Modules/ApplyVortex.h>
 #include <Engine/Aether/Modules/ColorOverLife.h>
@@ -24,6 +23,8 @@
 #include <Engine/Aether/Modules/SetSize.h>
 #include <Engine/Aether/Modules/SetVelocityCone.h>
 #include <Engine/Aether/Modules/SizeOverLife.h>
+
+#include <magic_enum/magic_enum.hpp>
 
 namespace Elixir::Aether::Effect
 {
@@ -57,19 +58,24 @@ namespace Elixir::Aether::Effect
         const auto it = GetRegistry().find(std::string(typeName));
         if (context.Failed() || it == GetRegistry().end())
             return nullptr;
+
         auto module = it->second(context, object);
+
         if (module && context.HasField(object, "target"))
         {
             const auto value = context.RequireString(object, "target");
             const auto target = magic_enum::enum_cast<Modules::EModuleTarget>(value);
-            if (!target || !module->SetTarget(*target)) context.Fail("Module '{}' does not support target '{}'.", typeName, value);
+
+            if (!target || !module->SetTarget(*target))
+                context.Fail("Module '{}' does not support target '{}'.", typeName, value);
         }
+
         return context.Failed() ? nullptr : std::move(module);
     }
 
     // Register built-in factories only in the engine shared library.
     AETHER_REGISTER_MODULE(ApplyAngularVelocity, Modules::ApplyAngularVelocity::Create)
-    AETHER_REGISTER_MODULE(ApplyCurlNoise, Modules::ApplyCurlNoise::Create)
+    AETHER_REGISTER_MODULE(CurlNoiseForce, Modules::CurlNoiseForce::Create)
     AETHER_REGISTER_MODULE(ApplyGravity, Modules::ApplyGravity::Create)
     AETHER_REGISTER_MODULE(ApplyLinearDrag, Modules::ApplyLinearDrag::Create)
     AETHER_REGISTER_MODULE(ApplyVortex, Modules::ApplyVortex::Create)

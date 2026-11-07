@@ -77,7 +77,7 @@
           ]
         },
         {
-          "type": "ApplyCurlNoise",
+          "type": "CurlNoiseForce",
           "target": "StrandPoints",
           "strength": 0.7,
           "frequency": 2.2,

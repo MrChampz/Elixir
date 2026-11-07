@@ -1,9 +1,8 @@
 #pragma once
 
-#include <Engine/GUI/Renderer/FrameGeometrySlots.h>
-
 #include <Engine/GUI/Renderer/RenderBatch.h>
 #include <Engine/GUI/Renderer/RenderPass.h>
+#include <Engine/GUI/Renderer/FrameGeometrySlots.h>
 #include <Engine/Graphics/ImageSet.h>
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
@@ -47,7 +46,6 @@ namespace Elixir::GUI
         void InitRenderPass(const ShaderLoader* shaderLoader);
         void BindShaderParameters() const;
 
-
         void BuildRectGeometry(const SDrawCommand& cmd);
 
         struct SQuad
@@ -89,20 +87,23 @@ namespace Elixir::GUI
 
         std::vector<SQuad> m_Quads;
 
-        Ref<Shader> m_Shader;
-        Ref<GraphicsPipeline> m_Pipeline;
         struct SGeometryBuffer
         {
             Ref<DynamicVertexBuffer> Buffer;
             size_t Capacity = 0;
         };
+
         FrameGeometrySlots<SGeometryBuffer> m_GeometrySlots;
         BufferLayout m_BufferLayout;
-        bool m_CanRender = false;
+
+        Ref<Shader> m_Shader;
+        Ref<GraphicsPipeline> m_Pipeline;
         Ref<ImageSet> m_ImageSet;
 
         Ref<Texture2D> m_WhiteTexture;
         SResourceHandle m_WhiteTextureHandle;
+
+        bool m_CanRender = false;
 
         float m_DPIScale;
         Ref<UniformBuffer> m_PerFrameConstantBuffer;

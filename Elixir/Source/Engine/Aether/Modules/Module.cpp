@@ -326,6 +326,7 @@ namespace Elixir::Aether::Modules
             EE_CORE_ERROR("Module does not support the requested execution target.");
             return false;
         }
+
         m_Target = target;
         return true;
     }

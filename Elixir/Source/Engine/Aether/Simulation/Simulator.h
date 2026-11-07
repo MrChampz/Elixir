@@ -19,6 +19,7 @@ namespace Elixir::Aether { class Manager; }
 namespace Elixir::Aether::Simulation
 {
     using namespace Core;
+    using namespace Rendering;
 
     /**
      * @brief Reports the simulation work for the latest frame submission.
@@ -280,11 +281,13 @@ namespace Elixir::Aether::Simulation
         void ClearParticleAllocation(const SSystemInstanceAllocation& allocation);
 
         // Records ordered simulation steps with separate GPU time values for each step.
-        Ref<const RenderFrame> RecordSteps(const Rendering::FrameSubmission& submission,
-            const Ref<CommandBuffer>& cmd, std::span<const float> steps, float initialTime);
+        Ref<const RenderFrame> RecordSteps(
+            const FrameSubmission& submission,
+            const Ref<CommandBuffer>& cmd,
+            std::span<const float> steps,
+            float initialTime
+        );
 
-        // Retains parameter uploads until their frame slot is safe to reuse.
-        std::array<std::vector<Ref<StagingBuffer>>, GraphicsContext::FRAMES> m_ParameterUploads;
         SResourcePoolLimits m_Limits;
         ParticleStateLayoutRegistry m_ParticleStateLayouts;
         std::vector<SParticleStateLayoutRuntime> m_ParticleStateLayoutRuntimes;
@@ -296,6 +299,12 @@ namespace Elixir::Aether::Simulation
             std::vector<SSystemInstanceAllocation>,
             GraphicsContext::FRAMES
         > m_DeferredRetirements;
+
+        // Retains parameter uploads until their frame slot is safe to reuse.
+        std::array<
+            std::vector<Ref<StagingBuffer>>,
+            GraphicsContext::FRAMES
+        > m_ParameterUploads;
 
         Ref<StorageBuffer> m_StrandPointBuffer;
         Ref<StorageBuffer> m_EmitterStateBuffer;
@@ -321,7 +330,6 @@ namespace Elixir::Aether::Simulation
         Ref<ComputePipeline> m_SchedulerScheduleEmittersPipeline;
         Ref<Shader> m_SchedulerFinalizeShader;
         Ref<ComputePipeline> m_SchedulerFinalizePipeline;
-
 
         uint64_t m_SubmissionSerial = 0;
         SSimulationMetrics m_LastMetrics{};

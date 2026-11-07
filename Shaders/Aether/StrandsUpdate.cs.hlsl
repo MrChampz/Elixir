@@ -1,20 +1,39 @@
 #include "ParticleData.hlsl"
 #include "ParticleAttributes.hlsl"
 #include "Operation.hlsl"
-#include "StrandMath.hlsl"
+#include "Math.hlsl"
+#include "Noise.hlsl"
 
-[[vk::binding(0, 0)]] StructuredBuffer<SGPUParticle> particles;
+[[vk::binding(0, 0)]]
+StructuredBuffer<SGPUParticle> particles;
+
 // Position, previous position, and transported normal occupy three float4 slots per pointIndex.
-[[vk::binding(1, 0)]] RWStructuredBuffer<float4> strandPoints;
-[[vk::binding(2, 0)]] StructuredBuffer<SGPUEmitter> emitters;
-[[vk::binding(3, 0)]] StructuredBuffer<SGPUSystemInstance> instances;
-[[vk::binding(4, 0)]] StructuredBuffer<SGPUOperation> operations;
-[[vk::binding(5, 0)]] StructuredBuffer<uint> operands;
-[[vk::binding(6, 0)]] ByteAddressBuffer constants;
-[[vk::binding(7, 0)]] ByteAddressBuffer parameters;
+[[vk::binding(1, 0)]]
+RWStructuredBuffer<float4> strandPoints;
+
+[[vk::binding(2, 0)]]
+StructuredBuffer<SGPUSystemInstance> instances;
+
+[[vk::binding(3, 0)]]
+StructuredBuffer<SGPUOperation> operations;
+
+[[vk::binding(4, 0)]]
+StructuredBuffer<uint> operands;
+
+[[vk::binding(5, 0)]]
+ByteAddressBuffer constants;
+
+[[vk::binding(6, 0)]]
+ByteAddressBuffer parameters;
+
 #include "OperationExecutor.hlsl"
 
-[[vk::binding(0, 1)]] cbuffer cbParams { float4 TimeData; float4 ViewportData; };
+[[vk::binding(0, 1)]]
+cbuffer cbParams
+{
+    float4 TimeData;
+    float4 ViewportData;
+};
 
 struct PushConstants
 {
@@ -29,38 +48,57 @@ struct PushConstants
     uint Generation;
     uint SolverIterations;
     uint InstanceIndex;
-    uint EmitterIndex;
+    // Absolute instruction range supplied by this emitter's strand dispatch.
+    uint OperationOffset;
+    uint OperationCount;
 };
-[[vk::push_constant]] PushConstants pc;
+
+[[vk::push_constant]]
+PushConstants pc;
 
 // Converts world-space points into the module's simulation-space coordinates.
 float3x3 InverseLinear(float3x3 value)
 {
     float3 a = cross(value[1], value[2]);
     float determinant = dot(value[0], a);
-    if (abs(determinant) < 0.000001) return float3x3(1,0,0, 0,1,0, 0,0,1);
-    return transpose(float3x3(a, cross(value[2], value[0]), cross(value[0], value[1]))) / determinant;
+
+    if (abs(determinant) < 0.000001)
+        return float3x3(1,0,0, 0,1,0, 0,0,1);
+
+    return transpose(
+        float3x3(a, cross(value[2], value[0]), cross(value[0], value[1]))
+    ) / determinant;
 }
 
-float3 LoadPoint(uint base, uint index) { return strandPoints[(base + index) * 3].xyz; }
+float3 LoadPoint(uint base, uint index)
+{
+    return strandPoints[(base + index) * 3].xyz;
+}
 
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
-    if (id.x >= pc.StrandCount) return;
+    if (id.x >= pc.StrandCount)
+        return;
+
     SGPUParticle root = particles[pc.ParticleOffset + id.x];
+
     uint count = pc.PointCount;
-    if (count < 2 || count > 96) return;
+    if (count < 2 || count > 96)
+        return;
+
     uint base = pc.PointOffset + id.x * count;
+
     if (root.Alive < 0.5)
     {
         // Generation zero marks an inactive chain even if its slot respawns with the same order.
         strandPoints[base * 3 + 1].w = 0.0;
         return;
     }
+
     SGPUSystemInstance instance = instances[pc.InstanceIndex];
-    SGPUEmitter emitter = emitters[pc.EmitterIndex];
     SOperationExecutor executor = CreateOperationExecutor(operands, constants, parameters);
+
     float3 origin = mul(pc.RootTransform, float4(0, 0, 0, 1)).xyz;
     float3 anchor = mul(pc.RootTransform, float4(root.Position, 1)).xyz;
     float3x3 linearTransform = (float3x3)pc.RootTransform;
@@ -72,18 +110,21 @@ void main(uint3 id : SV_DispatchThreadID)
         asuint(strandPoints[base * 3 + 1].w) != pc.Generation;
     float3 predicted[96];
     float3 previous[96];
+
     if (initialize)
     {
-        float3 direction = safeNormalize3(float3(hash31(float3(seed, 2, 3)) - 0.5,
-            hash31(float3(seed, 4, 5)) - 0.5, hash31(float3(seed, 6, 7)) - 0.5), float3(0, 1, 0));
-        float3 axis = safeNormalize3(cross(direction, float3(0, 0, 1)), float3(1, 0, 0));
+        float3 direction = SafeNormalize(float3(Hash3(float3(seed, 2, 3)) - 0.5,
+            Hash3(float3(seed, 4, 5)) - 0.5, Hash3(float3(seed, 6, 7)) - 0.5), float3(0, 1, 0));
+        float3 axis = SafeNormalize(cross(direction, float3(0, 0, 1)), float3(1, 0, 0));
+
         predicted[0] = anchor;
         previous[0] = anchor;
+
         for (uint pointIndex = 1; pointIndex < count; ++pointIndex)
         {
             predicted[pointIndex] = predicted[pointIndex - 1] + direction * lengthPerSegment;
             previous[pointIndex] = predicted[pointIndex];
-            direction = rotateAroundAxis(direction, axis, 0.4);
+            direction = RotateAroundAxis(direction, axis, 0.4);
         }
     }
     else
@@ -93,6 +134,7 @@ void main(uint3 id : SV_DispatchThreadID)
             predicted[pointIndex] = LoadPoint(base, pointIndex);
             previous[pointIndex] = strandPoints[(base + pointIndex) * 3 + 1].xyz;
         }
+
         // Bounded internal steps keep the constraints stable at low frame rates.
         float duration = min(max(TimeData.x, 0.0), 8.0 / 60.0);
         uint steps = max(1u, uint(ceil(duration * 60.0)));
@@ -102,18 +144,28 @@ void main(uint3 id : SV_DispatchThreadID)
         float3x3 inverseLinear = InverseLinear(linearTransform);
         float3 rootVelocity = duration > 0.000001 ? (anchor - oldAnchor) / duration : float3(0, 0, 0);
         float3 drag = -rootVelocity * 0.8;
+
         for (uint step = 0; step < steps && dt > 0; ++step)
         {
             predicted[0] = lerp(oldAnchor, anchor, float(step + 1) / float(steps));
+
             for (uint pointIndex = 1; pointIndex < count; ++pointIndex)
             {
                 float3 position = predicted[pointIndex];
+
                 SOperationExecutorContext context = (SOperationExecutorContext)0;
                 context.Instance = instance;
                 context.Attributes = LoadAttributes(root);
-                SetAttribute(context.Attributes, ParticleAttribute_Position, float4(mul(inverseLinear, position - origin), 1));
+
+                SetAttribute(
+                    context.Attributes,
+                    ParticleAttribute_Position,
+                    float4(mul(inverseLinear, position - origin), 1)
+                );
+
                 // Forces share the particle VM, accumulating a velocity increment from zero.
                 SetAttribute(context.Attributes, ParticleAttribute_Velocity, float4(0, 0, 0, 0));
+
                 context.DeltaTime = dt;
                 context.Time = TimeData.y - duration + float(step + 1) * dt;
                 context.NormalizedAge = saturate(root.Age / max(root.Lifetime, 0.001));
@@ -122,26 +174,35 @@ void main(uint3 id : SV_DispatchThreadID)
                 context.DynamicInputs.NormalizedAge = context.NormalizedAge;
                 context.DynamicInputs.ParticleSeed = seed;
                 context.DynamicInputs.Random = CalculateDynamicInputRandom(seed, context.Time);
-                for (uint operationIndex = 0; operationIndex < emitter.StrandUpdateOperationCount; ++operationIndex)
+
+                for (uint i = 0; i < pc.OperationCount; ++i)
                 {
-                    context.OperationIndex = operationIndex;
-                    executor.Execute(operations[emitter.StrandUpdateOperationOffset + operationIndex], context);
+                    context.OperationIndex = i;
+                    executor.Execute(operations[pc.OperationOffset + i], context);
                 }
+
                 float3 deltaVelocity = GetAttribute(context.Attributes, ParticleAttribute_Velocity).xyz;
+
                 predicted[pointIndex] += (position - previous[pointIndex]) * damping +
                     mul(linearTransform, deltaVelocity) * dt + drag * dt * dt;
+
                 previous[pointIndex] = position;
             }
+
             for (uint iteration = 0; iteration < pc.SolverIterations; ++iteration)
             {
                 for (uint pointIndex = 1; pointIndex < count; ++pointIndex)
                 {
                     float3 delta = predicted[pointIndex] - predicted[pointIndex - 1];
                     float distance = length(delta);
+
                     if (distance > 0.000001)
                     {
                         float3 correction = delta / distance * (distance - lengthPerSegment) * pc.Stiffness;
-                        if (pointIndex == 1) predicted[pointIndex] -= correction;
+                        if (pointIndex == 1)
+                        {
+                            predicted[pointIndex] -= correction;
+                        }
                         else
                         {
                             predicted[pointIndex - 1] += correction * 0.5;
@@ -151,25 +212,34 @@ void main(uint3 id : SV_DispatchThreadID)
                 }
             }
         }
+
         // The root remains pinned even when the timeline is paused.
         predicted[0] = anchor;
     }
-    float3 tangent = safeNormalize3(predicted[1] - predicted[0], float3(0, 1, 0));
+
+    float3 tangent = SafeNormalize(predicted[1] - predicted[0], float3(0, 1, 0));
     float3 reference = abs(tangent.z) < 0.9 ? float3(0, 0, 1) : float3(0, 1, 0);
-    float3 normal = safeNormalize3(cross(tangent, reference), float3(1, 0, 0));
+    float3 normal = SafeNormalize(cross(tangent, reference), float3(1, 0, 0));
+
     for (uint pointIndex = 0; pointIndex < count; ++pointIndex)
     {
-        float3 nextTangent = safeNormalize3(predicted[min(pointIndex + 1, count - 1)] -
+        float3 nextTangent = SafeNormalize(predicted[min(pointIndex + 1, count - 1)] -
             predicted[pointIndex > 0 ? pointIndex - 1 : 0], tangent);
         float3 axis = cross(tangent, nextTangent);
         float axisLength = length(axis);
+
         if (axisLength > 0.000001)
-            normal = rotateAroundAxis(normal, axis / axisLength,
-                atan2(axisLength, clamp(dot(tangent, nextTangent), -1.0, 1.0)));
-        normal = safeNormalize3(normal - nextTangent * dot(normal, nextTangent), normal);
+            normal = RotateAroundAxis(
+                normal,
+                axis / axisLength,
+                atan2(axisLength, clamp(dot(tangent, nextTangent), -1.0, 1.0))
+            );
+        normal = SafeNormalize(normal - nextTangent * dot(normal, nextTangent), normal);
+
         strandPoints[(base + pointIndex) * 3] = float4(predicted[pointIndex], asfloat(root.LinkOrder));
         strandPoints[(base + pointIndex) * 3 + 1] = float4(previous[pointIndex], asfloat(pc.Generation));
         strandPoints[(base + pointIndex) * 3 + 2] = float4(normal, 0);
+
         tangent = nextTangent;
     }
 }

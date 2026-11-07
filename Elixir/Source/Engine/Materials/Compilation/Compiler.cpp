@@ -2,7 +2,6 @@
 #include "Compiler.h"
 
 #include <Engine/Materials/Material.h>
-#include <Engine/Materials/MaterialGraph.h>
 #include <Engine/Materials/MaterialParameter.h>
 #include <Engine/Materials/Compilation/MaterialShaderSourceBuilder.h>
 
@@ -336,7 +335,9 @@ namespace Elixir::Materials::Compilation
     )
     {
         const std::string shaderName = variant == EMaterialShaderVariant::ParticleStrand
-            ? "ParticleStrand" : "ParticleRibbon";
+            ? "ParticleStrand"
+            : "ParticleRibbon";
+
         const auto vertexHlsl = ReadFile(s_ShadersDir / "Material" / (shaderName + ".vs.hlsl"));
         const auto pixelHlsl = ReadFile(s_ShadersDir / "Material" / (shaderName + ".ps.hlsl"));
 
@@ -419,7 +420,9 @@ namespace Elixir::Materials::Compilation
         }
 
         auto& shader = variant == EMaterialShaderVariant::ParticleStrand
-            ? result.Material->ParticleStrandShader : result.Material->ParticleRibbonShader;
+            ? result.Material->ParticleStrandShader
+            : result.Material->ParticleRibbonShader;
+
         shader = loader->LoadShader(loadDir, name);
         if (!shader)
         {

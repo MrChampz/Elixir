@@ -5,6 +5,7 @@
 #include <Engine/Aether/Core/Particle.h>
 
 #include <cmath>
+#include <limits>
 
 namespace Elixir::Aether::Core
 {
@@ -214,7 +215,9 @@ namespace Elixir::Aether::Core
      */
     inline bool IsValidUIntScalar(const float value)
     {
-        return std::isfinite(value) && value >= 0 && value < 4294967296.0f &&
+        // Comparing in double keeps the uint32_t limit from rounding up to 2^32.
+        return std::isfinite(value) && value >= 0 &&
+            static_cast<double>(value) <= std::numeric_limits<uint32_t>::max() &&
             std::floor(value) == value;
     }
 

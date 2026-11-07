@@ -1,9 +1,8 @@
 #pragma once
 
-#include <Engine/GUI/Renderer/FrameGeometrySlots.h>
-
 #include <Engine/GUI/Renderer/RenderBatch.h>
 #include <Engine/GUI/Renderer/RenderPass.h>
+#include <Engine/GUI/Renderer/FrameGeometrySlots.h>
 #include <Engine/Graphics/GraphicsContext.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
 
@@ -44,7 +43,6 @@ namespace Elixir::GUI
         void InitRenderPass(const ShaderLoader* shaderLoader);
         void BindShaderParameters() const;
 
-
         void BuildDebugRectGeometry(const SDrawCommand& cmd);
 
         struct SVertex
@@ -55,15 +53,18 @@ namespace Elixir::GUI
 
         std::vector<SVertex> m_Vertices;
 
-        Ref<Shader> m_Shader;
-        Ref<GraphicsPipeline> m_Pipeline;
         struct SGeometryBuffer
         {
             Ref<DynamicVertexBuffer> Buffer;
             size_t Capacity = 0;
         };
+
         FrameGeometrySlots<SGeometryBuffer> m_GeometrySlots;
         BufferLayout m_BufferLayout;
+
+        Ref<Shader> m_Shader;
+        Ref<GraphicsPipeline> m_Pipeline;
+
         bool m_CanRender = false;
 
         float m_DPIScale;

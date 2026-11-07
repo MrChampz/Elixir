@@ -35,10 +35,6 @@ struct SGPUEmitter
     uint  IsTriggerDriven;
     uint  KillOnLifetimeExpired;
     uint  Padding1;
-    uint  StrandUpdateOperationOffset;
-    uint  StrandUpdateOperationCount;
-    uint  Padding2;
-    uint  Padding3;
 };
 
 struct SGPUSystemInstance

@@ -1,7 +1,7 @@
 #ifndef AETHER_RANDOM_SAMPLING_HLSL
 #define AETHER_RANDOM_SAMPLING_HLSL
 
-#include "OperationMath.hlsl"
+#include "../Math.hlsl"
 
 float Hash2(float2 p)
 {

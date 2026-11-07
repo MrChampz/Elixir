@@ -7,7 +7,7 @@ static const uint SetPositionCircularPath_TimeScale = 1u;
 static const uint SetPositionCircularPath_PrimaryAmplitude = 2u;
 static const uint SetPositionCircularPath_SecondaryAmplitude = 3u;
 
-#include "OperationMath.hlsl"
+#include "../Math.hlsl"
 
 void SetPositionCircularPath(
     inout SOperationExecutor executor,

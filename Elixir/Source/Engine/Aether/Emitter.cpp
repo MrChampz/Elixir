@@ -22,14 +22,25 @@ namespace Elixir::Aether
         SetMaterial(material->CreateInstance());
     }
 
-    bool Emitter::SetStrandSettings(const SStrandSettings& settings)
+    bool Emitter::SetStrandSimulationConfig(const Simulation::SStrandSimulationConfig& config)
     {
-        if (!settings.IsValid())
+        if (!config.IsValid())
         {
-            EE_CORE_ERROR("Invalid strand settings for emitter '{}'.", m_Name);
+            EE_CORE_ERROR("Invalid strand simulation configuration for emitter '{}'.", m_Name);
             return false;
         }
-        m_Strand = settings;
+        m_StrandSimulation = config;
+        return true;
+    }
+
+    bool Emitter::SetStrandRenderConfig(const Rendering::SStrandRenderConfig& config)
+    {
+        if (!config.IsValid())
+        {
+            EE_CORE_ERROR("Invalid strand render configuration for emitter '{}'.", m_Name);
+            return false;
+        }
+        m_StrandRender = config;
         return true;
     }
 
@@ -54,7 +65,6 @@ namespace Elixir::Aether
         SCompiledEmitter emitter;
         emitter.Id = m_Id;
         emitter.RenderMode = m_RenderMode;
-        emitter.Strand = m_Strand;
         emitter.KillOnLifetimeExpired = m_KillOnLifetimeExpired;
         emitter.SimulationSpace = m_SimulationSpace;
         emitter.MaxParticles = m_MaxParticles;
@@ -108,17 +118,36 @@ namespace Elixir::Aether
         }
 
         emitter.UpdateOperationCount = (uint32_t)program.Operations.size() - emitter.UpdateOperationOffset;
-        emitter.StrandUpdateOperationOffset = uint32_t(program.Operations.size());
-        for (const auto& module : m_Modules)
-        {
-            if (module->GetPhase() == EModulePhase::Update && module->GetTarget() == EModuleTarget::StrandPoints)
-                module->Compile(context);
-        }
-        emitter.StrandUpdateOperationCount = uint32_t(program.Operations.size()) - emitter.StrandUpdateOperationOffset;
-
         if (!context.IsValid())
             return std::nullopt;
 
         return emitter;
+    }
+
+    std::optional<SCompiledStrand> Emitter::CompileStrand(
+        const std::vector<SCompiledParameter>& params,
+        SCompiledModuleData& program,
+        const float gravityScale
+    ) const
+    {
+        SCompiledStrand strand;
+        strand.SimulationConfig = m_StrandSimulation;
+        strand.RenderConfig = m_StrandRender;
+        strand.UpdateOperationOffset = uint32_t(program.Operations.size());
+
+        ModuleCompileContext context(program, params, m_Name, gravityScale);
+        for (const auto& module : m_Modules)
+        {
+            if (module->GetPhase() == EModulePhase::Update &&
+                module->GetTarget() == EModuleTarget::StrandPoints)
+                module->Compile(context);
+        }
+
+        if (!context.IsValid())
+            return std::nullopt;
+
+        strand.UpdateOperationCount =
+            uint32_t(program.Operations.size()) - strand.UpdateOperationOffset;
+        return strand;
     }
 }

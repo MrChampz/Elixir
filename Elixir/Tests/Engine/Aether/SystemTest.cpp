@@ -2,7 +2,7 @@
 
 #include <Engine/Aether/System.h>
 #include <Engine/Aether/Modules/ApplyGravity.h>
-#include <Engine/Aether/Modules/ApplyCurlNoise.h>
+#include <Engine/Aether/Modules/CurlNoiseForce.h>
 #include <Engine/Materials/Compilation/Compiler.h>
 #include <Engine/Materials/MaterialInstance.h>
 
@@ -54,6 +54,8 @@ TEST(SystemTest, CompilePreservesEmitterSimulationSpace)
     ASSERT_EQ(compiled.Emitters.size(), 2);
     EXPECT_EQ(compiled.Emitters[0].SimulationSpace, EParticleSimulationSpace::World);
     EXPECT_EQ(compiled.Emitters[1].SimulationSpace, EParticleSimulationSpace::Local);
+    EXPECT_TRUE(compiled.Strands.empty());
+    EXPECT_EQ(compiled.FindStrand(0), nullptr);
 }
 
 TEST(SystemTest, CompileAssignsContiguousLocalEmitterParticleOffsets)
@@ -241,32 +243,58 @@ TEST(SystemTest, CompileAssignsTheDefaultMaterialWhenNoneIsExplicit)
     );
 }
 
-TEST(SystemTest, CompilesIndependentStrandPointRangesAndSnapshotsSettings)
+TEST(SystemTest, CompilesIndependentStrandPointRangesAndSnapshotsConfiguration)
 {
     const auto system = CreateRef<System>("Strand ranges");
     auto& first = system->AddEmitter("First", 3, 0);
     first.SetRenderMode(EParticleRenderMode::Strand);
-    SStrandSettings settings;
-    settings.PointCount = 32;
-    ASSERT_TRUE(first.SetStrandSettings(settings));
+    Simulation::SStrandSimulationConfig simulationConfig;
+    simulationConfig.PointCount = 32;
+    ASSERT_TRUE(first.SetStrandSimulationConfig(simulationConfig));
+    Aether::Rendering::SStrandRenderConfig renderConfig;
+    renderConfig.RadialSegments = 6;
+    ASSERT_TRUE(first.SetStrandRenderConfig(renderConfig));
     system->AddEmitter("Sprites", 7, 0);
     auto& second = system->AddEmitter("Second", 2, 0);
     second.SetRenderMode(EParticleRenderMode::Strand);
     const auto compiled = Compile(system);
     ASSERT_EQ(compiled.Emitters.size(), 3);
+    ASSERT_EQ(compiled.Strands.size(), 2u);
+    EXPECT_EQ(compiled.Strands[0].EmitterIndex, 0u);
+    EXPECT_EQ(compiled.Strands[1].EmitterIndex, 2u);
+    EXPECT_EQ(compiled.FindStrand(0), &compiled.Strands[0]);
+    EXPECT_EQ(compiled.FindStrand(1), nullptr);
+    EXPECT_EQ(compiled.FindStrand(2), &compiled.Strands[1]);
+    EXPECT_EQ(compiled.FindStrand(3), nullptr);
     EXPECT_EQ(compiled.TotalStrandPoints, 3 * 32 + 2 * 24);
-    EXPECT_EQ(compiled.Emitters[0].LocalStrandPointOffset, 0);
-    EXPECT_EQ(compiled.Emitters[2].LocalStrandPointOffset, 96);
+    EXPECT_EQ(compiled.Strands[0].LocalPointOffset, 0);
+    EXPECT_EQ(compiled.Strands[1].LocalPointOffset, 96);
     EXPECT_EQ(compiled.Emitters[2].LocalParticleOffset, 10);
-    settings.PointCount = 12;
-    ASSERT_TRUE(first.SetStrandSettings(settings));
-    EXPECT_EQ(compiled.Emitters[0].Strand.PointCount, 32);
-    settings.PointCount = 97;
-    EXPECT_FALSE(first.SetStrandSettings(settings));
-    EXPECT_EQ(first.GetStrandSettings().PointCount, 12);
-    settings.PointCount = 12;
-    settings.Damping = std::numeric_limits<float>::quiet_NaN();
-    EXPECT_FALSE(first.SetStrandSettings(settings));
+    EXPECT_EQ(compiled.Strands[0].RenderConfig.RadialSegments, 6);
+    renderConfig.RadialSegments = 12;
+    renderConfig.Subdivisions = 8;
+    ASSERT_TRUE(first.SetStrandRenderConfig(renderConfig));
+    const auto retessellated = Compile(system);
+    EXPECT_EQ(retessellated.TotalStrandPoints, compiled.TotalStrandPoints);
+    EXPECT_EQ(retessellated.Strands[1].LocalPointOffset, 96);
+    EXPECT_EQ(retessellated.Strands[0].RenderConfig.RadialSegments, 12);
+    EXPECT_EQ(compiled.Strands[0].RenderConfig.RadialSegments, 6);
+    simulationConfig.PointCount = 12;
+    ASSERT_TRUE(first.SetStrandSimulationConfig(simulationConfig));
+    EXPECT_EQ(compiled.Strands[0].SimulationConfig.PointCount, 32);
+    simulationConfig.PointCount = 97;
+    EXPECT_FALSE(first.SetStrandSimulationConfig(simulationConfig));
+    EXPECT_EQ(first.GetStrandSimulationConfig().PointCount, 12);
+    simulationConfig.PointCount = 12;
+    simulationConfig.Damping = std::numeric_limits<float>::quiet_NaN();
+    EXPECT_FALSE(first.SetStrandSimulationConfig(simulationConfig));
+    renderConfig.WidthScale = std::numeric_limits<float>::quiet_NaN();
+    EXPECT_FALSE(first.SetStrandRenderConfig(renderConfig));
+    EXPECT_FLOAT_EQ(first.GetStrandRenderConfig().WidthScale, 0.3f);
+    renderConfig.WidthScale = 0.3f;
+    renderConfig.RadialSegments = 2;
+    EXPECT_FALSE(first.SetStrandRenderConfig(renderConfig));
+    EXPECT_EQ(first.GetStrandRenderConfig().RadialSegments, 12);
 }
 
 TEST(SystemTest, LifetimeDeathPolicyDefaultsToEnabledAndIsSnapshottedIndependently)
@@ -289,20 +317,32 @@ TEST(SystemTest, PartitionsUpdateModulesByTargetAndPreservesEachTargetOrder)
     auto& emitter = system->AddEmitter("Strand", 1, 0);
     emitter.SetRenderMode(EParticleRenderMode::Strand);
     emitter.AddModule(CreateScope<Modules::ApplyGravity>(glm::vec3(0, -1, 0)));
-    auto curl = CreateScope<Modules::ApplyCurlNoise>();
+    auto curl = CreateScope<Modules::CurlNoiseForce>();
     ASSERT_TRUE(curl->SetTarget(EModuleTarget::StrandPoints));
     emitter.AddModule(std::move(curl));
     auto gravity = CreateScope<Modules::ApplyGravity>(glm::vec3(0, -2, 0));
     ASSERT_TRUE(gravity->SetTarget(EModuleTarget::StrandPoints));
     emitter.AddModule(std::move(gravity));
-    emitter.AddModule(CreateScope<Modules::ApplyCurlNoise>());
+    emitter.AddModule(CreateScope<Modules::CurlNoiseForce>());
     const auto compiled = Compile(system);
     ASSERT_EQ(compiled.Emitters.size(), 1);
     const auto& result = compiled.Emitters[0];
-    EXPECT_EQ(result.UpdateOperationCount, 2);
-    EXPECT_EQ(result.StrandUpdateOperationCount, 2);
+    ASSERT_EQ(compiled.Strands.size(), 1u);
+    const auto& strand = compiled.Strands[0];
+    EXPECT_EQ(strand.EmitterIndex, 0u);
+    EXPECT_EQ(result.UpdateOperationCount, 12);
+    EXPECT_EQ(strand.UpdateOperationCount, 12);
     EXPECT_EQ(compiled.ModuleData.Operations[result.UpdateOperationOffset].Type, EOperationType::AddWithDelta);
-    EXPECT_EQ(compiled.ModuleData.Operations[result.UpdateOperationOffset + 1].Type, EOperationType::ApplyCurlNoise);
-    EXPECT_EQ(compiled.ModuleData.Operations[result.StrandUpdateOperationOffset].Type, EOperationType::ApplyCurlNoise);
-    EXPECT_EQ(compiled.ModuleData.Operations[result.StrandUpdateOperationOffset + 1].Type, EOperationType::AddWithDelta);
+    EXPECT_EQ(
+        compiled.ModuleData.Operations[result.UpdateOperationOffset + 8].Type,
+        EOperationType::SampleCurlNoise
+    );
+    EXPECT_EQ(
+        compiled.ModuleData.Operations[strand.UpdateOperationOffset + 7].Type,
+        EOperationType::SampleCurlNoise
+    );
+    EXPECT_EQ(
+        compiled.ModuleData.Operations[strand.UpdateOperationOffset + 11].Type,
+        EOperationType::AddWithDelta
+    );
 }

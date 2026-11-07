@@ -8,7 +8,7 @@ using namespace Elixir::Aether;
 TEST(EffectEditingTest, ParsesUnsavedDefinitionAndSkipsDisabledEmittersAndModules)
 {
     std::string error;
-    const auto system = Effect::LoadEffectText(R"({"name":"Edited","emitters":[
+    const auto system = Effect::ParseEffect(R"({"name":"Edited","emitters":[
         {"name":"Active","maxParticles":100,"spawnRate":10,"spawnModules":[
             {"type":"SetLifetime","min":1,"max":2},
             {"type":"SetSize","enabled":false,"min":0.1,"max":0.5}]},
@@ -28,11 +28,11 @@ TEST(EffectEditingTest, ParsesUnsavedDefinitionAndSkipsDisabledEmittersAndModule
 TEST(EffectEditingTest, ReturnsValidationErrorsForMalformedDefinitions)
 {
     std::string error;
-    EXPECT_EQ(Effect::LoadEffectText(R"({"name":"Bad","emitters":[{"enabled":"false"}]})", &error), nullptr);
+    EXPECT_EQ(Effect::ParseEffect(R"({"name":"Bad","emitters":[{"enabled":"false"}]})", &error), nullptr);
     EXPECT_FALSE(error.empty());
-    EXPECT_EQ(Effect::LoadEffectText("[]", &error), nullptr);
+    EXPECT_EQ(Effect::ParseEffect("[]", &error), nullptr);
     EXPECT_FALSE(error.empty());
-    EXPECT_EQ(Effect::LoadEffectText("{", &error), nullptr);
+    EXPECT_EQ(Effect::ParseEffect("{", &error), nullptr);
     EXPECT_FALSE(error.empty());
 }
 
