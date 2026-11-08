@@ -40,12 +40,6 @@ namespace Elixir::Aether::Core
         uint32_t ParameterWordCapacity = 65'536;
         uint32_t TriggerTargetCapacity = 4'096;
         uint32_t TriggerEventCapacityPerEmitter = 64;
-
-        /**
-         * Maximum persistent strand points shared by live instances; each point uses 48
-         * bytes.
-         */
-        uint32_t StrandPointCapacity = 262'144;
     };
 
     /**
@@ -69,10 +63,6 @@ namespace Elixir::Aether::Core
         bool UploadProgram = false;
 
         SBufferRange Particles;
-
-        /** Persistent strand point range owned by this instance. */
-        SBufferRange StrandPoints;
-
         SBufferRange Emitters;
         SBufferRange Operations;
         SBufferRange Operands;

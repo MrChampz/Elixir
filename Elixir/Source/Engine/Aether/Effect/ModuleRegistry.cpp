@@ -3,6 +3,7 @@
 
 #include <Engine/Aether/Modules/ApplyAngularVelocity.h>
 #include <Engine/Aether/Modules/ApplyGravity.h>
+#include <Engine/Aether/Modules/DistanceConstraint.h>
 #include <Engine/Aether/Modules/CurlNoiseForce.h>
 #include <Engine/Aether/Modules/ApplyLinearDrag.h>
 #include <Engine/Aether/Modules/ApplyVortex.h>
@@ -61,15 +62,6 @@ namespace Elixir::Aether::Effect
 
         auto module = it->second(context, object);
 
-        if (module && context.HasField(object, "target"))
-        {
-            const auto value = context.RequireString(object, "target");
-            const auto target = magic_enum::enum_cast<Modules::EModuleTarget>(value);
-
-            if (!target || !module->SetTarget(*target))
-                context.Fail("Module '{}' does not support target '{}'.", typeName, value);
-        }
-
         return context.Failed() ? nullptr : std::move(module);
     }
 
@@ -77,6 +69,7 @@ namespace Elixir::Aether::Effect
     AETHER_REGISTER_MODULE(ApplyAngularVelocity, Modules::ApplyAngularVelocity::Create)
     AETHER_REGISTER_MODULE(CurlNoiseForce, Modules::CurlNoiseForce::Create)
     AETHER_REGISTER_MODULE(ApplyGravity, Modules::ApplyGravity::Create)
+    AETHER_REGISTER_MODULE(DistanceConstraint, Modules::DistanceConstraint::Create)
     AETHER_REGISTER_MODULE(ApplyLinearDrag, Modules::ApplyLinearDrag::Create)
     AETHER_REGISTER_MODULE(ApplyVortex, Modules::ApplyVortex::Create)
     AETHER_REGISTER_MODULE(ColorOverLife, Modules::ColorOverLife::Create)

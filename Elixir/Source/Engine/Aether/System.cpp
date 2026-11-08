@@ -142,20 +142,6 @@ namespace Elixir::Aether
             return std::nullopt;
         }
 
-        for (const auto& emitter : m_Emitters)
-        {
-            for (const auto& module : emitter->m_Modules)
-            {
-                if (!module->SupportsTarget(module->GetTarget()) ||
-                    (module->GetTarget() == EModuleTarget::StrandPoints &&
-                        emitter->GetRenderMode() != EParticleRenderMode::Strand))
-                {
-                    EE_CORE_ERROR("Aether module target is incompatible with its emitter.");
-                    return std::nullopt;
-                }
-            }
-        }
-
         uint32_t localParticleOffset = 0;
         system.Emitters.reserve(m_Emitters.size());
 
@@ -172,33 +158,6 @@ namespace Elixir::Aether
 
             auto compiled = std::move(*result);
             compiled.LocalParticleOffset = localParticleOffset;
-
-            if (compiled.RenderMode == EParticleRenderMode::Strand)
-            {
-                auto strand = emitter->CompileStrand(
-                    system.Parameters,
-                    system.ModuleData,
-                    compiled.GravityScale
-                );
-                if (!strand)
-                    return std::nullopt;
-
-                strand->EmitterIndex = uint32_t(system.Emitters.size());
-                strand->LocalPointOffset = system.TotalStrandPoints;
-                const uint64_t count = uint64_t(compiled.MaxParticles) *
-                    strand->SimulationConfig.PointCount;
-                if (count > UINT32_MAX - system.TotalStrandPoints)
-                {
-                    EE_CORE_ERROR("Aether strand point count exceeds the addressable range.");
-                    system.Emitters.clear();
-                    system.TotalMaxParticles = 0;
-                    system.TotalStrandPoints = 0;
-                    return std::nullopt;
-                }
-
-                system.TotalStrandPoints += uint32_t(count);
-                system.Strands.push_back(std::move(*strand));
-            }
 
             localParticleOffset += compiled.MaxParticles;
             system.TotalMaxParticles += compiled.MaxParticles;

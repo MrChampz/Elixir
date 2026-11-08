@@ -4,12 +4,36 @@
 namespace Elixir::Aether
 {
     Emitter::Emitter(
-        const std::string& name,
+        std::string name,
         const uint32_t maxParticles,
         const float spawnRate
-    ) : m_Name(name),
+    ) : m_Name(std::move(name)),
         m_MaxParticles(maxParticles),
         m_SpawnRate(spawnRate) {}
+
+    bool Emitter::SetSolverConfig(const SSolverConfig& config)
+    {
+        if (!config.IsValid())
+        {
+            EE_CORE_ERROR("Invalid constraint solver configuration for emitter '{}'.", m_Name)
+            return false;
+        }
+
+        m_Solver = config;
+        return true;
+    }
+
+    bool Emitter::SetStrandRenderConfig(const SStrandRenderConfig& config)
+    {
+        if (!config.IsValid())
+        {
+            EE_CORE_ERROR("Invalid strand render configuration for emitter '{}'.", m_Name);
+            return false;
+        }
+
+        m_StrandRender = config;
+        return true;
+    }
 
     void Emitter::SetMaterial(const Ref<Material>& material)
     {
@@ -20,28 +44,6 @@ namespace Elixir::Aether
         }
 
         SetMaterial(material->CreateInstance());
-    }
-
-    bool Emitter::SetStrandSimulationConfig(const Simulation::SStrandSimulationConfig& config)
-    {
-        if (!config.IsValid())
-        {
-            EE_CORE_ERROR("Invalid strand simulation configuration for emitter '{}'.", m_Name);
-            return false;
-        }
-        m_StrandSimulation = config;
-        return true;
-    }
-
-    bool Emitter::SetStrandRenderConfig(const Rendering::SStrandRenderConfig& config)
-    {
-        if (!config.IsValid())
-        {
-            EE_CORE_ERROR("Invalid strand render configuration for emitter '{}'.", m_Name);
-            return false;
-        }
-        m_StrandRender = config;
-        return true;
     }
 
     void Emitter::SetBurst(const uint32_t count, const float intervalSeconds)
@@ -65,6 +67,9 @@ namespace Elixir::Aether
         SCompiledEmitter emitter;
         emitter.Id = m_Id;
         emitter.RenderMode = m_RenderMode;
+        emitter.Solver = m_Solver;
+        if (m_RenderMode == EParticleRenderMode::Strand)
+            emitter.RenderConfig = CreateRef<Rendering::SStrandRenderConfig>(m_StrandRender);
         emitter.KillOnLifetimeExpired = m_KillOnLifetimeExpired;
         emitter.SimulationSpace = m_SimulationSpace;
         emitter.MaxParticles = m_MaxParticles;
@@ -108,46 +113,23 @@ namespace Elixir::Aether
 
         emitter.SpawnOperationCount = (uint32_t)program.Operations.size() - emitter.SpawnOperationOffset;
         emitter.UpdateOperationOffset = (uint32_t)program.Operations.size();
+        emitter.ConstraintOffset = uint32_t(program.Constraints.size());
 
         for (const auto& module : m_Modules)
         {
-            if (module->GetPhase() != EModulePhase::Update || module->GetTarget() != EModuleTarget::Particle)
+            if (module->GetPhase() != EModulePhase::Update)
                 continue;
 
             module->Compile(context);
         }
 
         emitter.UpdateOperationCount = (uint32_t)program.Operations.size() - emitter.UpdateOperationOffset;
+        emitter.ConstraintCount =
+            uint32_t(program.Constraints.size()) - emitter.ConstraintOffset;
         if (!context.IsValid())
             return std::nullopt;
 
         return emitter;
     }
 
-    std::optional<SCompiledStrand> Emitter::CompileStrand(
-        const std::vector<SCompiledParameter>& params,
-        SCompiledModuleData& program,
-        const float gravityScale
-    ) const
-    {
-        SCompiledStrand strand;
-        strand.SimulationConfig = m_StrandSimulation;
-        strand.RenderConfig = m_StrandRender;
-        strand.UpdateOperationOffset = uint32_t(program.Operations.size());
-
-        ModuleCompileContext context(program, params, m_Name, gravityScale);
-        for (const auto& module : m_Modules)
-        {
-            if (module->GetPhase() == EModulePhase::Update &&
-                module->GetTarget() == EModuleTarget::StrandPoints)
-                module->Compile(context);
-        }
-
-        if (!context.IsValid())
-            return std::nullopt;
-
-        strand.UpdateOperationCount =
-            uint32_t(program.Operations.size()) - strand.UpdateOperationOffset;
-        return strand;
-    }
 }

@@ -65,9 +65,6 @@ namespace Elixir::Aether
         EParticleStateLayout ParticleStateLayout = EParticleStateLayout::CoreV1;
 
         std::vector<SCompiledEmitter> Emitters;
-
-        /** Strand emitters only, ordered by their index in Emitters. */
-        std::vector<SCompiledStrand> Strands;
         std::vector<SCompiledTriggerTarget> TriggerTargets;
 
         SCompiledModuleData ModuleData;
@@ -83,29 +80,6 @@ namespace Elixir::Aether
         std::vector<SGPUColorCurve> ColorCurves;
 
         uint32_t TotalMaxParticles = 0;
-
-        /** Number of persistent strand control points required by one instance. */
-        uint32_t TotalStrandPoints = 0;
-
-        /**
-         * @brief Finds the strand data associated with an emitter.
-         * @param emitterIndex Index in this system's Emitters table.
-         * @return Strand data, or null when the emitter has no strand entry.
-         * @pre Strands is sorted by EmitterIndex.
-         */
-        const SCompiledStrand* FindStrand(const uint32_t emitterIndex) const
-        {
-            const auto entry = std::ranges::lower_bound(
-                Strands,
-                emitterIndex,
-                {},
-                &SCompiledStrand::EmitterIndex
-            );
-            if (entry == Strands.end() || entry->EmitterIndex != emitterIndex)
-                return nullptr;
-
-            return &*entry;
-        }
     };
 
     /**

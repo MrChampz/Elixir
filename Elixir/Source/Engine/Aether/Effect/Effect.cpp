@@ -4,8 +4,6 @@
 #include <Engine/Aether/Effect/MaterialDescription.h>
 #include <Engine/Aether/Effect/MaterialFactory.h>
 #include <Engine/Aether/Effect/ModuleRegistry.h>
-#include <Engine/Aether/Modules/CurlNoiseForce.h>
-#include <Engine/Aether/Modules/ApplyGravity.h>
 
 #include <simdjson.h>
 #include <magic_enum/magic_enum.hpp>
@@ -82,11 +80,38 @@ namespace Elixir::Aether::Effect
                 emitter.SetKillOnLifetimeExpired(enabled);
             }
 
-            // Reads optional strand simulation and rendering configuration.
+            /**
+             * @brief Reads execution settings for constraint modules.
+             * @param emitter Emitter receiving solver settings.
+             * @param json Emitter definition.
+             */
+            void ParseSolver(Emitter& emitter, od::object& json)
+            {
+                if (!HasField(json, "solver")) return;
+
+                od::object object;
+                if (json["solver"].get_object().get(object))
+                {
+                    Fail("'solver' must be an object.");
+                    return;
+                }
+
+                SSolverConfig config;
+                if (HasField(object, "iterations"))
+                    config.Iterations = RequireUInt(object, "iterations");
+
+                if (!Failed() && !emitter.SetSolverConfig(config))
+                    Fail("Invalid constraint solver configuration.");
+            }
+
+            /**
+             * @brief Reads tube rendering configuration.
+             * @param emitter Emitter receiving the rendering configuration.
+             * @param json Emitter definition.
+             */
             void ParseStrand(Emitter& emitter, od::object& json)
             {
-                if (!HasField(json, "strand"))
-                    return;
+                if (!HasField(json, "strand")) return;
 
                 od::object object;
                 if (json["strand"].get_object().get(object))
@@ -95,69 +120,20 @@ namespace Elixir::Aether::Effect
                     return;
                 }
 
-                Simulation::SStrandSimulationConfig simulationConfig;
-                Rendering::SStrandRenderConfig renderConfig;
-
-                if (HasField(object, "points"))
-                    simulationConfig.PointCount = RequireUInt(object, "points");
-
-                if (HasField(object, "segmentLength"))
-                    simulationConfig.SegmentLength = RequireFloat(object, "segmentLength");
-
-                if (HasField(object, "stiffness"))
-                    simulationConfig.Stiffness = RequireFloat(object, "stiffness");
-
-                if (HasField(object, "damping"))
-                    simulationConfig.Damping = RequireFloat(object, "damping");
-
-                // Translate earlier strand assets to the same explicit force modules.
-                if ((HasField(object, "gravity") || HasField(object, "sway")) &&
-                    emitter.GetRenderMode() != EParticleRenderMode::Strand)
-                {
-                    Fail("Strand forces require a Strand emitter.");
-                    return;
-                }
-
-                if (HasField(object, "gravity"))
-                {
-                    auto force = CreateScope<ApplyGravity>(RequireFloatVec<3>(object, "gravity"));
-                    force->SetTarget(EModuleTarget::StrandPoints);
-                    emitter.AddModule(std::move(force));
-                }
-
-                if (HasField(object, "sway"))
-                {
-                    const float strength = RequireFloat(object, "sway");
-
-                    if (strength < 0)
-                    {
-                        Fail("Strand sway must be nonnegative.");
-                        return;
-                    }
-
-                    auto force = CreateScope<CurlNoiseForce>(strength);
-                    force->SetTarget(EModuleTarget::StrandPoints);
-                    emitter.AddModule(std::move(force));
-                }
-
+                SStrandRenderConfig config;
+                if (HasField(object, "maxPoints"))
+                    config.MaxPoints = RequireUInt(object, "maxPoints");
+                if (HasField(object, "orderStep"))
+                    config.OrderStep = RequireUInt(object, "orderStep");
                 if (HasField(object, "widthScale"))
-                    renderConfig.WidthScale = RequireFloat(object, "widthScale");
-
-                if (HasField(object, "solverIterations"))
-                    simulationConfig.SolverIterations =
-                        RequireUInt(object, "solverIterations");
-
+                    config.WidthScale = RequireFloat(object, "widthScale");
                 if (HasField(object, "radialSegments"))
-                    renderConfig.RadialSegments = RequireUInt(object, "radialSegments");
-
+                    config.RadialSegments = RequireUInt(object, "radialSegments");
                 if (HasField(object, "subdivisions"))
-                    renderConfig.Subdivisions = RequireUInt(object, "subdivisions");
+                    config.Subdivisions = RequireUInt(object, "subdivisions");
 
-                if (Failed()) return;
-
-                if (!emitter.SetStrandSimulationConfig(simulationConfig) ||
-                    !emitter.SetStrandRenderConfig(renderConfig))
-                    Fail("Invalid strand configuration.");
+                if (!Failed() && !emitter.SetStrandRenderConfig(config))
+                    Fail("Invalid strand rendering configuration.");
             }
 
             /* Parameter/curve blocks */
@@ -378,7 +354,7 @@ namespace Elixir::Aether::Effect
                 auto module = ModuleRegistry::Create(type, *this, json);
                 if (Failed()) return;
 
-                const auto kind = phase == EModulePhase::Spawn ? "spawn" : "update";
+                const auto kind = magic_enum::enum_name(phase);
                 if (!module)
                 {
                     Fail("Unsupported {} module type '{}'.", kind, type);
@@ -391,21 +367,21 @@ namespace Elixir::Aether::Effect
                     return;
                 }
 
-                if (module->GetTarget() == EModuleTarget::StrandPoints &&
-                    emitter.GetRenderMode() != EParticleRenderMode::Strand)
-                {
-                    Fail("StrandPoints modules require a Strand emitter.");
-                    return;
-                }
-
                 emitter.AddModule(std::move(module));
             }
 
+            /**
+             * @brief Loads enabled modules for one execution phase.
+             * @param parent Emitter definition containing the module array.
+             * @param key Name of the module array.
+             * @param emitter Emitter receiving the modules.
+             * @param phase Required execution phase for every module in the array.
+             */
             void LoadModules(
                 od::object& parent,
                 std::string_view key,
                 Emitter& emitter,
-                const bool spawn
+                const EModulePhase phase
             )
             {
                 if (Failed()) return;
@@ -433,7 +409,7 @@ namespace Elixir::Aether::Effect
                     }
 
                     if (IsEnabled(module))
-                        BuildModule(emitter, module, spawn ? EModulePhase::Spawn : EModulePhase::Update);
+                        BuildModule(emitter, module, phase);
                 }
             }
 
@@ -531,6 +507,9 @@ namespace Elixir::Aether::Effect
                 ParseParticleState(emitter, json);
                 if (Failed()) return;
 
+                ParseSolver(emitter, json);
+                if (Failed()) return;
+
                 ParseStrand(emitter, json);
                 if (Failed()) return;
 
@@ -580,8 +559,8 @@ namespace Elixir::Aether::Effect
                 LoadParameters(json, emitter.GetParameters());
                 LoadCurves(json, emitter.GetCurves());
                 LoadColorCurves(json, emitter.GetColorCurves());
-                LoadModules(json, "spawnModules", emitter, true);
-                LoadModules(json, "updateModules", emitter, false);
+                LoadModules(json, "spawnModules", emitter, EModulePhase::Spawn);
+                LoadModules(json, "updateModules", emitter, EModulePhase::Update);
             }
 
         };

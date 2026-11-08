@@ -5,17 +5,14 @@
       "name": "Energy Filaments",
       "renderMode": "Strand",
       "simulationSpace": "Local",
-      "maxParticles": 24,
+      "maxParticles": 864,
       "spawnRate": 0,
       "strand": {
-        "points": 36,
-        "segmentLength": 0.045,
-        "stiffness": 0.93,
-        "damping": 0.94,
         "widthScale": 0.11,
-        "solverIterations": 10,
         "radialSegments": 5,
-        "subdivisions": 4
+        "subdivisions": 4,
+        "maxPoints": 36,
+        "orderStep": 24
       },
       "material": {
         "color": [
@@ -64,12 +61,16 @@
             1,
             1
           ]
+        },
+        {
+          "type": "SetRibbonIdFromSpawnOrder",
+          "ribbonCount": 24,
+          "firstRibbonId": 0
         }
       ],
       "updateModules": [
         {
           "type": "ApplyGravity",
-          "target": "StrandPoints",
           "gravity": [
             0.12,
             0.08,
@@ -78,7 +79,6 @@
         },
         {
           "type": "CurlNoiseForce",
-          "target": "StrandPoints",
           "strength": 1.5,
           "frequency": 3.3,
           "scrollVelocity": [
@@ -87,14 +87,29 @@
             0.18
           ],
           "seed": 17
+        },
+        {
+          "type": "ApplyLinearDrag",
+          "drag": 3.6
+        },
+        {
+          "type": "DistanceConstraint",
+          "maxPoints": 36,
+          "orderStep": 24,
+          "segmentLength": 0.045,
+          "stiffness": 0.93,
+          "pinFirstParticle": true
         }
       ],
       "burst": {
-        "count": 24,
+        "count": 864,
         "interval": 0
       },
       "particleState": {
         "killOnLifetimeExpired": false
+      },
+      "solver": {
+        "iterations": 10
       }
     }
   ]

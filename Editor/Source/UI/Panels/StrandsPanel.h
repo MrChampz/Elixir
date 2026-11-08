@@ -47,7 +47,7 @@ private:
     Ref<Aether::SystemInstance> m_Instance;
     std::filesystem::path m_EffectDirectory;
     std::string m_SampleName, m_LoadError;
-    uint32_t m_StrandCount = 0;
+    uint32_t m_ParticleCount = 0;
     int m_SampleIndex = 0, m_RequestedSample = -1;
     ArcBallCameraController m_Camera{60, 1};
     glm::vec3 m_Position{};

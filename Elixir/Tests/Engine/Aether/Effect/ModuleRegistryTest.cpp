@@ -13,6 +13,7 @@
 #include <Engine/Aether/Core/Operations/SampleCurve.h>
 #include <Engine/Aether/Modules/ApplyAngularVelocity.h>
 #include <Engine/Aether/Modules/ApplyGravity.h>
+#include <Engine/Aether/Modules/DistanceConstraint.h>
 #include <Engine/Aether/Modules/ApplyLinearDrag.h>
 #include <Engine/Aether/Modules/ApplyVortex.h>
 #include <Engine/Aether/Modules/ColorOverLife.h>
@@ -487,22 +488,46 @@ TEST(ModuleRegistryTest, LoadsStrandConfigurationAndRejectsInvalidRanges)
     std::string error;
     const auto system = Effect::ParseEffect(R"({"name":"Strands","emitters":[
         {"name":"Root","renderMode":"Strand","simulationSpace":"Local","maxParticles":4,"spawnRate":0,
-         "strand":{"points":32,"gravity":[0,-1,0],"radialSegments":6},"material":{"blendMode":"Opaque"}}]})", &error);
+         "updateModules":[{"type":"ApplyLinearDrag","drag":1},
+                          {"type":"DistanceConstraint","maxPoints":32}],
+         "solver":{"iterations":12},"strand":{"radialSegments":6},
+         "material":{"blendMode":"Opaque"}}]})", &error);
     ASSERT_TRUE(system) << error;
     const auto& emitter = *system->GetEmitters().front();
     EXPECT_EQ(emitter.GetRenderMode(), EParticleRenderMode::Strand);
     EXPECT_EQ(emitter.GetSimulationSpace(), EParticleSimulationSpace::Local);
-    EXPECT_EQ(emitter.GetStrandSimulationConfig().PointCount, 32);
+    EXPECT_EQ(emitter.GetSolverConfig().Iterations, 12u);
+    Effect::ModuleParseContext context;
+    const auto constraint = CreateRegistered(
+        "DistanceConstraint",
+        R"({"maxPoints":32,"stiffness":0.5})",
+        context
+    );
+    ASSERT_TRUE(constraint);
+    EXPECT_EQ(constraint->GetPhase(), EModulePhase::Update);
     EXPECT_EQ(emitter.GetStrandRenderConfig().RadialSegments, 6);
     ASSERT_TRUE(emitter.GetMaterialDescription());
     EXPECT_EQ(emitter.GetMaterialDescription()->BlendMode, Elixir::Materials::EMaterialBlendMode::Opaque);
-    for (const auto* fields : {R"("points":1)", R"("points":97)", R"("segmentLength":0)",
-        R"("damping":1.1)", R"("stiffness":-1)", R"("solverIterations":0)",
-        R"("widthScale":0)", R"("radialSegments":2)", R"("subdivisions":9)",
-        R"("gravity":[0,1])"})
+    for (const auto* fields : {
+        R"("solver":{"iterations":0})",
+        R"("solver":{"iterations":17})",
+        R"("updateModules":[{"type":"DistanceConstraint","maxPoints":1}])",
+        R"("updateModules":[{"type":"DistanceConstraint","maxPoints":97}])",
+        R"("updateModules":[{"type":"DistanceConstraint","orderStep":0}])",
+        R"("updateModules":[{"type":"DistanceConstraint","segmentLength":0}])",
+        R"("updateModules":[{"type":"DistanceConstraint","stiffness":-1}])",
+        R"("updateModules":[{"type":"DistanceConstraint","pinFirstParticle":0}])",
+        R"("spawnModules":[{"type":"DistanceConstraint"}])",
+        R"("strand":{"orderStep":0})",
+        R"("strand":{"widthScale":0})",
+        R"("strand":{"radialSegments":2})",
+        R"("strand":{"subdivisions":9})"
+    })
     {
         SCOPED_TRACE(fields);
-        const std::string json = std::string(R"({"name":"Bad","emitters":[{"name":"Root","renderMode":"Strand","maxParticles":1,"spawnRate":0,"strand":{)") + fields + "}}]}";
+        const std::string json = std::string(
+            R"({"name":"Bad","emitters":[{"name":"Root","maxParticles":1,"spawnRate":0,)"
+        ) + fields + "}]}";
         EXPECT_FALSE(Effect::ParseEffect(json, &error));
         EXPECT_FALSE(error.empty());
     }
@@ -529,20 +554,19 @@ TEST(ModuleRegistryTest, LoadsLifetimeDeathPolicyAndRejectsNonBooleanValues)
     }
 }
 
-TEST(ModuleRegistryTest, ValidatesModuleExecutionTargetsAndCurlParameterBindings)
+TEST(ModuleRegistryTest, ValidatesCurlParametersAndBindings)
 {
     Effect::ModuleParseContext context;
     const auto gravity = CreateRegistered("ApplyGravity", R"({"gravity":[0,-1,0]})", context);
     ASSERT_TRUE(gravity);
-    EXPECT_EQ(gravity->GetTarget(), EModuleTarget::Particle);
-    const auto curl = CreateRegistered("CurlNoiseForce", R"({"target":"StrandPoints","strength":"$Strength","frequency":2.2,"scrollVelocity":[0.1,0.2,0.3],"seed":"$Seed"})", context);
+    const auto curl = CreateRegistered(
+        "CurlNoiseForce",
+        R"({"strength":"$Strength","frequency":2.2,
+            "scrollVelocity":[0.1,0.2,0.3],"seed":"$Seed"})",
+        context
+    );
     ASSERT_TRUE(curl) << context.GetError();
-    EXPECT_EQ(curl->GetTarget(), EModuleTarget::StrandPoints);
     for (const auto& entry : {
-        std::pair{"ColorOverLife", R"({"target":"StrandPoints","start":[1,1,1,1],"end":[1,1,1,1]})"},
-        std::pair{"SetLifetime", R"({"target":"StrandPoints","min":1,"max":2})"},
-        std::pair{"ApplyGravity", R"({"target":"Unknown","gravity":[0,-1,0]})"},
-        std::pair{"ApplyGravity", R"({"target":3,"gravity":[0,-1,0]})"},
         std::pair{"CurlNoiseForce", R"({"frequency":0})"},
         std::pair{"CurlNoiseForce", R"({"strength":-1})"}
     })
@@ -551,9 +575,7 @@ TEST(ModuleRegistryTest, ValidatesModuleExecutionTargetsAndCurlParameterBindings
         EXPECT_FALSE(CreateRegistered(entry.first, entry.second, invalid));
         EXPECT_TRUE(invalid.Failed());
     }
-    std::string error;
-    EXPECT_FALSE(Effect::ParseEffect(R"({"name":"Bad","emitters":[{"name":"Sprite","maxParticles":1,"spawnRate":0,
-        "updateModules":[{"type":"ApplyGravity","target":"StrandPoints","gravity":[0,-1,0]}]}]})", &error));
+
 }
 
 TEST(ModuleRegistryTest, CompilesCurlSeedBindingFromJSON)

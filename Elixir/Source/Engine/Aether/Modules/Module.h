@@ -6,22 +6,17 @@
 #include <Engine/Aether/Core/Operation.h>
 #include <Engine/Aether/Core/Operand.h>
 #include <Engine/Aether/Core/DynamicInput.h>
+#include <Engine/Aether/Simulation/ParticleConstraints.h>
 
 namespace Elixir::Aether::Modules
 {
     using namespace Elixir::Aether::Core;
+    using namespace Elixir::Aether::Simulation;
 
     /** @brief Identifies the point in the particle lifetime at which a module runs. */
     enum class EModulePhase : uint8_t
     {
         Spawn, Update
-    };
-
-    /** @brief Selects which simulation receives an update module. */
-    enum class EModuleTarget : uint8_t
-    {
-        Particle,
-        StrandPoints
     };
 
     /** @brief Stores compiled instructions, references, and packed literal words. */
@@ -34,6 +29,9 @@ namespace Elixir::Aether::Modules
 
         /** Literal bit patterns packed without float4 padding. */
         std::vector<uint32_t> Constants;
+
+        /** Constraint descriptors addressed by each emitter's constraint range. */
+        std::vector<SDistanceConstraint> Constraints;
 
         /**
          * @brief Removes unused literals and relocates references.
@@ -68,10 +66,10 @@ namespace Elixir::Aether::Modules
     };
 
     /**
-     * @brief Gives a module the data it needs to compile GPU operations.
+     * @brief Gives a module the data it needs to compile particle programs.
      *
      * The context resolves emitter-local values before system-level values. It
-     * appends operations to the compiled system and does not own its inputs.
+     * appends operations or constraints to the compiled system and does not own its inputs.
      * Failed operand compilation logs an error and returns an invalid operand
      * that Emit rejects.
      */
@@ -91,26 +89,6 @@ namespace Elixir::Aether::Modules
             std::string_view emitterName,
             float gravityScale
         );
-
-        /**
-         * @brief Finds a parameter available to this emitter.
-         *
-         * The lookup first checks the emitter-local name, then the system name.
-         *
-         * @param name Authored parameter name.
-         * @return The compiled parameter index, or UINT32_MAX when not found.
-         */
-        uint32_t FindParameter(std::string_view name) const;
-
-        /**
-         * @brief Finds the first compiled parameter for a curve.
-         *
-         * The lookup first checks the emitter-local curve, then the system curve.
-         *
-         * @param name Authored curve name.
-         * @return The compiled parameter index, or UINT32_MAX when not found.
-         */
-        uint32_t FindCurve(std::string_view name) const;
 
         /**
          * @brief Returns the gravity multiplier configured by the emitter.
@@ -134,6 +112,16 @@ namespace Elixir::Aether::Modules
             EParticleAttribute target,
             std::initializer_list<SGPUOperand> operands
         );
+
+        /**
+         * @brief Appends a distance constraint to execute after position integration.
+         *
+         * Update modules use this method to schedule constraints independently of their
+         * position in the authored module list.
+         *
+         * @param constraint Values to validate and copy into the compiled snapshot.
+         */
+        void EmitDistanceConstraint(const SDistanceConstraint& constraint);
 
         /**
          * @brief Compile a scalar literal or named parameter binding.
@@ -198,6 +186,26 @@ namespace Elixir::Aether::Modules
          */
         SGPUOperand Curve(std::string_view name);
 
+        /**
+         * @brief Finds a parameter available to this emitter.
+         *
+         * The lookup first checks the emitter-local name, then the system name.
+         *
+         * @param name Authored parameter name.
+         * @return The compiled parameter index, or UINT32_MAX when not found.
+         */
+        uint32_t FindParameter(std::string_view name) const;
+
+        /**
+         * @brief Finds the first compiled parameter for a curve.
+         *
+         * The lookup first checks the emitter-local curve, then the system curve.
+         *
+         * @param name Authored curve name.
+         * @return The compiled parameter index, or UINT32_MAX when not found.
+         */
+        uint32_t FindCurve(std::string_view name) const;
+
         /** @brief Report whether all operand and operation compilation steps succeeded. */
         bool IsValid() const { return m_Valid; }
 
@@ -240,7 +248,7 @@ namespace Elixir::Aether::Modules
         virtual ~Module();
 
         /**
-         * @brief Append this module's GPU operations to the supplied context.
+         * @brief Appends this module's operations or constraints to the supplied context.
          * @param context Compilation context that receives operations and resolves parameters.
          */
         virtual void Compile(ModuleCompileContext& context) const = 0;
@@ -248,18 +256,8 @@ namespace Elixir::Aether::Modules
         /** @brief Returns the phase in which this module is compiled. */
         EModulePhase GetPhase() const { return m_Phase; }
 
-        /** @brief Returns the execution target; existing modules default to Particle. */
-        EModuleTarget GetTarget() const { return m_Target; }
-
-        /** @brief Selects an execution target; unsupported targets log an error and leave the selection unchanged. */
-        bool SetTarget(EModuleTarget target);
-
-        /** @brief Reports whether this module can run against the selected simulation. */
-        virtual bool SupportsTarget(EModuleTarget target) const { return target == EModuleTarget::Particle; }
-
     private:
         EModulePhase m_Phase;
-        EModuleTarget m_Target = EModuleTarget::Particle;
     };
 
     /** @brief Base class for modules that run when a particle is created. */

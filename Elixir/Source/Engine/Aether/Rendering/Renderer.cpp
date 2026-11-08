@@ -1,6 +1,8 @@
 #include "epch.h"
 #include "Renderer.h"
 
+#include <Engine/Aether/Rendering/StrandRenderConfig.h>
+
 namespace Elixir::Aether::Rendering
 {
     using namespace Core;
@@ -26,24 +28,25 @@ namespace Elixir::Aether::Rendering
             uint32_t MaterialIndex = UINT32_MAX;
         };
 
-        struct SStrandPushConstants
-        {
-            uint32_t ParticleOffset = 0;
-            uint32_t PointOffset = 0;
-            uint32_t PointCount = 0;
-            uint32_t RadialSegments = 0;
-            uint32_t Subdivisions = 0;
-            float WidthScale = 0;
-            uint32_t MaterialIndex = UINT32_MAX;
-            uint32_t Padding = 0;
-        };
-
         struct SRibbonPushConstants
         {
             glm::mat4 WorldTransform{ 1.0f };
             uint32_t EmitterIndex = 0;
             uint32_t ParticleBaseOffset = 0;
             uint32_t MaterialIndex = UINT32_MAX;
+        };
+
+        struct SStrandPushConstants
+        {
+            glm::mat4 WorldTransform{1.0f};
+            uint32_t ParticleOffset = 0;
+            uint32_t ParticleCount = 0;
+            uint32_t RadialSegments = 0;
+            uint32_t Subdivisions = 0;
+            float WidthScale = 0;
+            uint32_t OrderStep = 1;
+            uint32_t MaterialIndex = UINT32_MAX;
+            uint32_t MaxPoints = 0;
         };
     }
 
@@ -272,10 +275,6 @@ namespace Elixir::Aether::Rendering
                     .Name = "particles",
                     .Buffer = { resource->ParticleStateBuffer }
                 },
-                SStorageBufferBinding{
-                    .Name = "strandPoints",
-                    .Buffer = { resource->StrandPointBuffer }
-                },
             };
 
             const SGeometryIndices indices{
@@ -383,31 +382,25 @@ namespace Elixir::Aether::Rendering
 
                 case EParticleRenderMode::Strand:
                 {
-                    const auto* resource = FindRenderResource(frame, item.ParticleStateLayout);
+                    const auto* config = dynamic_cast<const SStrandRenderConfig*>(
+                        item.RenderConfig.get()
+                    );
 
-                    if (!resource ||
-                        !resource->StrandPointBuffer ||
-                        !resource->StrandPointBuffer->IsValid())
+                    if (!config)
                     {
-                        EE_CORE_ERROR("Aether strand draw requires persistent point storage.");
+                        EE_CORE_ERROR("Strand rendering requires tube geometry configuration.")
                         break;
                     }
 
-                    const auto& transform = item.WorldTransform;
-                    const float maxAxisScale = std::max({
-                        glm::length(glm::vec3(transform[0])),
-                        glm::length(glm::vec3(transform[1])),
-                        glm::length(glm::vec3(transform[2]))
-                    });
-
-                    const auto& config = item.StrandRender;
                     const SStrandPushConstants constants{
+                        .WorldTransform = item.WorldTransform,
                         .ParticleOffset = item.Allocation.Particles.Offset + item.LocalParticleOffset,
-                        .PointOffset = item.StrandPointOffset,
-                        .PointCount = item.StrandPointCount,
-                        .RadialSegments = config.RadialSegments,
-                        .Subdivisions = config.Subdivisions,
-                        .WidthScale = config.WidthScale * maxAxisScale,
+                        .ParticleCount = item.ParticleCount,
+                        .RadialSegments = config->RadialSegments,
+                        .Subdivisions = config->Subdivisions,
+                        .WidthScale = config->WidthScale,
+                        .OrderStep = config->OrderStep,
+                        .MaxPoints = config->MaxPoints,
                     };
 
                     scene.Add({
@@ -420,7 +413,7 @@ namespace Elixir::Aether::Rendering
                             offsetof(SStrandPushConstants, MaterialIndex)
                         ),
                         .Draw = {
-                            .VertexCount = config.GetVertexCount(item.StrandPointCount),
+                            .VertexCount = config->GetSegmentVertexCount(),
                             .InstanceCount = item.ParticleCount
                         },
                     });

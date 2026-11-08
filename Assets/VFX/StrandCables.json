@@ -5,17 +5,14 @@
       "name": "Hanging Cables",
       "renderMode": "Strand",
       "simulationSpace": "Local",
-      "maxParticles": 12,
+      "maxParticles": 480,
       "spawnRate": 0,
       "strand": {
-        "points": 40,
-        "segmentLength": 0.04,
-        "stiffness": 1,
-        "damping": 0.985,
         "widthScale": 0.18,
-        "solverIterations": 16,
         "radialSegments": 6,
-        "subdivisions": 3
+        "subdivisions": 3,
+        "maxPoints": 40,
+        "orderStep": 12
       },
       "material": {
         "color": [
@@ -63,12 +60,16 @@
             0.32,
             1
           ]
+        },
+        {
+          "type": "SetRibbonIdFromSpawnOrder",
+          "ribbonCount": 12,
+          "firstRibbonId": 0
         }
       ],
       "updateModules": [
         {
           "type": "ApplyGravity",
-          "target": "StrandPoints",
           "gravity": [
             0,
             -1.8,
@@ -77,7 +78,6 @@
         },
         {
           "type": "CurlNoiseForce",
-          "target": "StrandPoints",
           "strength": 0.025,
           "frequency": 1.4,
           "scrollVelocity": [
@@ -86,14 +86,29 @@
             0
           ],
           "seed": 17
+        },
+        {
+          "type": "ApplyLinearDrag",
+          "drag": 0.9
+        },
+        {
+          "type": "DistanceConstraint",
+          "maxPoints": 40,
+          "orderStep": 12,
+          "segmentLength": 0.04,
+          "stiffness": 1,
+          "pinFirstParticle": true
         }
       ],
       "burst": {
-        "count": 12,
+        "count": 480,
         "interval": 0
       },
       "particleState": {
         "killOnLifetimeExpired": false
+      },
+      "solver": {
+        "iterations": 16
       }
     }
   ]

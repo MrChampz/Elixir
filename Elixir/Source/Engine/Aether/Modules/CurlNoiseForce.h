@@ -25,13 +25,6 @@ namespace Elixir::Aether::Modules
             m_ScrollVelocity(scrollVelocity),
             m_Seed(seed) {}
 
-        /** @brief Supports particle velocity and free strand points. */
-        bool SupportsTarget(const EModuleTarget target) const override
-        {
-            return target == EModuleTarget::Particle ||
-                target == EModuleTarget::StrandPoints;
-        }
-
         /**
          * @brief Composes a curl force from sampling and arithmetic operations.
          * @param context Compilation context that receives operations and resolves parameters.

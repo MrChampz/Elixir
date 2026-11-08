@@ -72,8 +72,9 @@ bool StrandsPanel::LoadSample(int index)
         m_Instance = std::move(instance);
         m_SampleIndex = index;
         m_SampleName = system->GetName();
-        m_StrandCount = 0;
-        for (const auto& emitter : system->GetEmitters()) m_StrandCount += emitter->GetMaxParticles();
+        m_ParticleCount = 0;
+        for (const auto& emitter : system->GetEmitters())
+            m_ParticleCount += emitter->GetMaxParticles();
         m_LoadError.clear();
         StopNavigation();
         return true;
@@ -162,8 +163,14 @@ void StrandsPanel::OnUpdate(Timestep frameTime)
     m_Position.x = std::clamp(m_Position.x + direction.x * step, -1.25f, 1.25f);
     m_Position.y = std::clamp(m_Position.y + direction.y * step, -0.95f, 0.95f);
     if (previous != m_Position) m_Instance->SetWorldTransform(glm::translate(glm::mat4(1), m_Position));
-    m_Status->SetText(m_LoadError.empty() ? std::format("{}   |   {} strands   |   Origin: ({:.2f}, {:.2f})",
-        m_SampleName, m_StrandCount, m_Position.x, m_Position.y) : m_LoadError);
+    const auto status = m_LoadError.empty() ? std::format(
+        "{}   |   {} particles   |   Origin: ({:.2f}, {:.2f})",
+        m_SampleName,
+        m_ParticleCount,
+        m_Position.x,
+        m_Position.y
+    ) : m_LoadError;
+    m_Status->SetText(status);
 }
 
 void StrandsPanel::OnActivated(bool active)

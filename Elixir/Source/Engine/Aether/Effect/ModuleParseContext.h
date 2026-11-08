@@ -95,6 +95,23 @@ namespace Elixir::Aether::Effect
             return static_cast<uint32_t>(value);
         }
 
+        /** @brief Reads a required boolean field. */
+        bool RequireBoolean(simdjson::ondemand::object& object, std::string_view key)
+        {
+            if (Failed()) return false;
+
+            auto field = object[key];
+            bool value;
+
+            if (field.error() || field.get_bool().get(value))
+            {
+                Fail("Field '{}' must be a boolean.", key);
+                return false;
+            }
+
+            return value;
+        }
+
         /** @brief Reads a required string field. */
         std::string RequireString(simdjson::ondemand::object& object, std::string_view key)
         {

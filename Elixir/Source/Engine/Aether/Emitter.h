@@ -3,11 +3,12 @@
 #include <Engine/Core/UUID.h>
 #include <Engine/Materials/MaterialInstance.h>
 #include <Engine/Materials/Rendering/MaterialResolver.h>
-#include <Engine/Aether/Modules/Module.h>
 #include <Engine/Aether/Core/ParameterStore.h>
-#include <Engine/Aether/Strand.h>
 #include <Engine/Aether/Core/CurveStore.h>
 #include <Engine/Aether/Core/ColorCurveStore.h>
+#include <Engine/Aether/Modules/Module.h>
+#include <Engine/Aether/Simulation/SolverConfig.h>
+#include <Engine/Aether/Rendering/StrandRenderConfig.h>
 #include <Engine/Aether/Effect/MaterialDescription.h>
 #include <Engine/Aether/Effect/MaterialFactory.h>
 
@@ -41,6 +42,18 @@ namespace Elixir::Aether
 
         /** @brief Removes particles when their age reaches Lifetime; false keeps them alive until another kill condition. */
         bool KillOnLifetimeExpired = true;
+
+        /** Constraint descriptor range in the compiled system's module data. */
+        uint32_t ConstraintOffset = 0;
+
+        /** Number of constraint descriptors in this emitter's range. */
+        uint32_t ConstraintCount = 0;
+
+        /** Shared execution settings for this emitter's constraint modules. */
+        SSolverConfig Solver;
+
+        /** Immutable geometry configuration interpreted by the selected renderer. */
+        Ref<const Rendering::SEmitterRenderConfig> RenderConfig;
 
         // Material instance submitted to the material system with each frame.
         Ref<MaterialInstance> Material;
@@ -82,6 +95,8 @@ GENERATE_HASH_FUNCTION(Elixir::Aether::SCompiledEmitter)
 
 namespace Elixir::Aether
 {
+    using namespace Rendering;
+
     /**
      * @brief Defines one particle source within an authored Aether system.
      *
@@ -107,7 +122,7 @@ namespace Elixir::Aether
          * @param maxParticles Maximum number of particles the emitter can own.
          * @param spawnRate Default spawn rate in particles per second.
          */
-        Emitter(const std::string& name, uint32_t maxParticles, float spawnRate);
+        Emitter(std::string name, uint32_t maxParticles, float spawnRate);
 
         Emitter(Emitter&&) = default;
         Emitter& operator=(Emitter&&) = default;
@@ -154,18 +169,15 @@ namespace Elixir::Aether
          */
         void SetRenderMode(const EParticleRenderMode mode) { m_RenderMode = mode; }
 
-        /** @brief Returns the point-chain and solver configuration for this emitter. */
-        const Simulation::SStrandSimulationConfig& GetStrandSimulationConfig() const
-        {
-            return m_StrandSimulation;
-        }
+        /** @brief Returns execution settings for this emitter's constraint modules. */
+        const SSolverConfig& GetSolverConfig() const { return m_Solver; }
 
         /**
-         * @brief Updates the point-chain and solver configuration for this emitter.
-         * @param config Solver values to validate and copy.
-         * @return False for invalid values, leaving the previous configuration unchanged.
+         * @brief Updates execution settings for all constraint modules.
+         * @param config Solver settings to validate and copy.
+         * @return False for invalid values, preserving the previous settings.
          */
-        bool SetStrandSimulationConfig(const Simulation::SStrandSimulationConfig& config);
+        bool SetSolverConfig(const Simulation::SSolverConfig& config);
 
         /** @brief Returns the tube thickness and tessellation for this emitter. */
         const Rendering::SStrandRenderConfig& GetStrandRenderConfig() const
@@ -364,33 +376,22 @@ namespace Elixir::Aether
             SCompiledModuleData& program
         ) const;
 
-        /**
-         * @brief Compiles the strand configuration and point-update instructions.
-         * @param params Compiled parameters available to module bindings.
-         * @param program Shared operation tables; discard them if compilation fails.
-         * @param gravityScale Resolved gravity multiplier for this emitter.
-         * @return Compiled strand data, or no value if a module fails to compile.
-         */
-        std::optional<SCompiledStrand> CompileStrand(
-            const std::vector<SCompiledParameter>& params,
-            SCompiledModuleData& program,
-            float gravityScale
-        ) const;
-
         UUID m_Id;
         std::string m_Name;
+
         EParticleRenderMode m_RenderMode = EParticleRenderMode::Sprite;
         EParticleSimulationSpace m_SimulationSpace = EParticleSimulationSpace::World;
-        Simulation::SStrandSimulationConfig m_StrandSimulation;
-        Rendering::SStrandRenderConfig m_StrandRender;
+        SSolverConfig m_Solver;
+        SStrandRenderConfig m_StrandRender;
         bool m_KillOnLifetimeExpired = true;
+
         std::optional<Effect::SMaterialDescription> m_MaterialDescription;
         Ref<MaterialInstance> m_Material;
         bool m_MaterialIsResolved = false;
-        uint32_t m_MaxParticles;
 
         std::vector<Scope<Module>> m_Modules;
 
+        uint32_t m_MaxParticles;
         std::string m_SpawnRateParamName;
         float m_SpawnRate = 0.0f; // particles per second
         uint32_t m_BurstCount = 0u;

@@ -5,17 +5,14 @@
       "name": "Tentacles",
       "renderMode": "Strand",
       "simulationSpace": "Local",
-      "maxParticles": 64,
+      "maxParticles": 2048,
       "spawnRate": 0,
       "strand": {
-        "points": 32,
-        "segmentLength": 0.04,
-        "stiffness": 0.85,
-        "damping": 0.96,
         "widthScale": 0.3,
-        "solverIterations": 8,
         "radialSegments": 8,
-        "subdivisions": 4
+        "subdivisions": 4,
+        "maxPoints": 32,
+        "orderStep": 64
       },
       "material": {
         "color": [
@@ -64,12 +61,16 @@
             0.1,
             1
           ]
+        },
+        {
+          "type": "SetRibbonIdFromSpawnOrder",
+          "ribbonCount": 64,
+          "firstRibbonId": 0
         }
       ],
       "updateModules": [
         {
           "type": "ApplyGravity",
-          "target": "StrandPoints",
           "gravity": [
             0,
             -0.15,
@@ -78,7 +79,6 @@
         },
         {
           "type": "CurlNoiseForce",
-          "target": "StrandPoints",
           "strength": 0.7,
           "frequency": 2.2,
           "scrollVelocity": [
@@ -87,14 +87,29 @@
             0.07
           ],
           "seed": 0
+        },
+        {
+          "type": "ApplyLinearDrag",
+          "drag": 2.4
+        },
+        {
+          "type": "DistanceConstraint",
+          "maxPoints": 32,
+          "orderStep": 64,
+          "segmentLength": 0.04,
+          "stiffness": 0.85,
+          "pinFirstParticle": true
         }
       ],
       "burst": {
-        "count": 64,
+        "count": 2048,
         "interval": 0
       },
       "particleState": {
         "killOnLifetimeExpired": false
+      },
+      "solver": {
+        "iterations": 8
       }
     }
   ]

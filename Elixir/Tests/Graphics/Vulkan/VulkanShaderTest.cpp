@@ -123,198 +123,8 @@ namespace
     }
 }
 
-// Execute the actual strand shader and read its persistent state back from coherent memory.
-
 namespace
 {
-    struct SStrandTestConstants
-    {
-        glm::mat4 RootTransform{1.0f};
-        uint32_t ParticleOffset = 0;
-        uint32_t PointOffset = 0;
-        uint32_t PointCount = 32;
-        uint32_t StrandCount = 1;
-        float SegmentLength = 0.04f;
-        float Stiffness = 1.0f;
-        float Damping = 0.96f;
-        uint32_t Generation = 1;
-        uint32_t SolverIterations = 16;
-        uint32_t InstanceIndex = 0;
-        uint32_t OperationOffset = 0;
-        uint32_t OperationCount = 0;
-    };
-    static_assert(sizeof(SStrandTestConstants) == 112);
-    static_assert(offsetof(SStrandTestConstants, OperationOffset) == 104);
-    static_assert(offsetof(SStrandTestConstants, OperationCount) == 108);
-    static_assert(offsetof(SStrandTestConstants, ParticleOffset) == 64);
-    static_assert(offsetof(SStrandTestConstants, Generation) == 92);
-
-    TEST(VulkanShaderTest, StrandSolverPinsRootsKeepsFiniteStateAndResetsOnRespawn)
-    {
-        const auto context = VulkanTestContext::Get().GetGraphicsContext();
-        ShaderLoader loader(context);
-        const auto shader = loader.LoadShader("./Shaders/Aether", "StrandsUpdate", EShaderStage::Compute);
-        ASSERT_TRUE(shader);
-        const auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
-        ASSERT_TRUE(pipeline);
-        // CoreV1: position/size, velocity/age, transform, tangent/id, color, metadata.
-        std::array<glm::vec4, 6> root{};
-        root[0] = {0, 0, 0, 16};
-        root[2].y = 1;
-        root[4] = {1, 1, 1, 1};
-        root[5] = {0, std::bit_cast<float>(7u), 30, 1};
-        const auto particles = DynamicStorageBuffer::Create(context, sizeof(root), root.data());
-        constexpr uint32_t maxPoints = 96;
-        const std::vector<glm::vec4> zeros(maxPoints * 3);
-        const auto points = DynamicStorageBuffer::Create(context, zeros.size() * sizeof(glm::vec4), zeros.data());
-        std::array<glm::vec4, 2> time{};
-        const auto params = UniformBuffer::Create(context, sizeof(time), time.data());
-        using namespace Aether::Core;
-        using namespace Aether::Modules;
-        const std::vector<SParameter> authoredParameters{{"CurlStrength", EParameterType::Float, glm::vec4(0.5f, 0, 0, 0)}};
-        const auto compiledParameters = CompileParameters(authoredParameters);
-        auto words = PackParameterValues(compiledParameters);
-        SCompiledModuleData program;
-        ModuleCompileContext compile(program, compiledParameters, "Force", 1);
-        ApplyGravity({0, -0.15f, 0}).Compile(compile);
-        CurlNoiseForce().BindParameters("CurlStrength", "", "", "").Compile(compile);
-        std::array<uint32_t, 15> instanceData{};
-        const auto instanceBuffer = DynamicStorageBuffer::Create(context, sizeof(instanceData), instanceData.data());
-        const auto operationBuffer = DynamicStorageBuffer::Create(context, program.Operations.size() * sizeof(SGPUOperation), program.Operations.data());
-        const auto operandBuffer = DynamicStorageBuffer::Create(context, program.Operands.size() * sizeof(uint32_t), program.Operands.data());
-        const auto constantBuffer = DynamicStorageBuffer::Create(context, program.Constants.size() * sizeof(uint32_t), program.Constants.data());
-        const auto parameterBuffer = DynamicStorageBuffer::Create(context, words.size() * sizeof(uint32_t), words.data());
-        shader->BindStorageBuffer("instances", instanceBuffer);
-        shader->BindStorageBuffer("operations", operationBuffer);
-        shader->BindStorageBuffer("operands", operandBuffer);
-        shader->BindStorageBuffer("constants", constantBuffer);
-        shader->BindStorageBuffer("parameters", parameterBuffer);
-        SStrandTestConstants pc;
-        pc.OperationCount = uint32_t(program.Operations.size());
-        const auto ranges = static_cast<VulkanShader*>(shader.get())->GetPushConstantRanges();
-        ASSERT_EQ(ranges.size(), 1u);
-        EXPECT_EQ(ranges[0].size, sizeof(SStrandTestConstants));
-        shader->SetPushConstant("pc", &pc, sizeof(pc));
-        shader->BindStorageBuffer("particles", particles);
-        shader->BindStorageBuffer("strandPoints", points);
-        shader->BindConstantBuffer("cbParams", params);
-        const auto dispatch = [&](float dt)
-        {
-            time[0].x = dt;
-            time[0].y += dt;
-            params->UpdateData(time.data(), sizeof(time));
-            const auto cmd = context->GetUploadCommandBuffer();
-            cmd->Begin();
-            points->Barrier(cmd, EPipelineStage::ComputeShader, EPipelineAccess::ShaderRead | EPipelineAccess::ShaderWrite);
-            pipeline->Bind(cmd);
-            shader->SetPushConstant(cmd, "pc", &pc, sizeof(pc));
-            cmd->Dispatch(1);
-            const VkMemoryBarrier hostBarrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
-                VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT};
-            vkCmdPipelineBarrier(static_cast<VulkanCommandBuffer*>(cmd.get())->GetVulkanCommandBuffer(),
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0,
-                1, &hostBarrier, 0, nullptr, 0, nullptr);
-            cmd->End();
-            cmd->Flush();
-        };
-        const auto read = [&]()
-        {
-            const auto* mapped = static_cast<const glm::vec4*>(points->Map());
-            std::vector<glm::vec4> result(mapped, mapped + maxPoints * 3);
-            return result;
-        };
-        dispatch(0);
-        const auto initial = read();
-        EXPECT_EQ(std::bit_cast<uint32_t>(initial[0].w), 7u);
-        EXPECT_EQ(std::bit_cast<uint32_t>(initial[1].w), 1u);
-        EXPECT_NEAR(glm::length(glm::vec3(initial[3]) - glm::vec3(initial[0])), pc.SegmentLength, 0.00001f);
-        dispatch(0);
-        EXPECT_EQ(read(), initial);
-        pc.RootTransform = glm::translate(glm::mat4(1), glm::vec3(0.1f, 0.2f, 0.3f));
-        for (int frame = 0; frame < 20; ++frame) dispatch(frame % 2 ? 1.0f / 30 : 1.0f / 120);
-        const auto moved = read();
-        EXPECT_NEAR(moved[0].x, 0.1f, 0.00001f);
-        EXPECT_NEAR(moved[0].y, 0.2f, 0.00001f);
-        EXPECT_NEAR(moved[0].z, 0.3f, 0.00001f);
-        for (uint32_t point = 0; point < pc.PointCount; ++point)
-        {
-            for (int axis = 0; axis < 3; ++axis) EXPECT_TRUE(std::isfinite(moved[point * 3][axis]));
-            EXPECT_NEAR(glm::length(glm::vec3(moved[point * 3 + 2])), 1, 0.0001f);
-            if (point > 0)
-                EXPECT_LT(glm::length(glm::vec3(moved[point * 3]) - glm::vec3(moved[(point - 1) * 3])), pc.SegmentLength * 1.5f);
-        }
-        const auto stamp = std::bit_cast<uint32_t>(moved[0].w);
-        words[0] = std::bit_cast<uint32_t>(0.0f);
-        parameterBuffer->UpdateData(words.data(), words.size() * sizeof(uint32_t));
-        dispatch(1.0f / 60);
-        const auto withoutCurl = read();
-        EXPECT_EQ(std::bit_cast<uint32_t>(withoutCurl[0].w), stamp);
-        // Compare identical initial chains with and without curl. Runtime bindings
-        // change the force without changing the spawn marker or point allocation.
-        pc.RootTransform = glm::mat4(1);
-        points->UpdateData(initial.data(), initial.size() * sizeof(glm::vec4));
-        time[0].y = 1;
-        dispatch(0.1f);
-        const auto gravityOnly = read();
-        words[0] = std::bit_cast<uint32_t>(1.0f);
-        parameterBuffer->UpdateData(words.data(), words.size() * sizeof(uint32_t));
-        points->UpdateData(initial.data(), initial.size() * sizeof(glm::vec4));
-        time[0].y = 1;
-        dispatch(0.1f);
-        const auto withCurl = read();
-        EXPECT_GT(glm::length(glm::vec3(withCurl[30 * 3]) - glm::vec3(gravityOnly[30 * 3])), 0.000001f);
-        EXPECT_EQ(std::bit_cast<uint32_t>(withCurl[0].w), stamp);
-        // Removing the point operation stream removes both authored forces.
-        pc.OperationCount = 0;
-        points->UpdateData(initial.data(), initial.size() * sizeof(glm::vec4));
-        dispatch(0.1f);
-        const auto noForces = read();
-        EXPECT_NEAR(glm::length(glm::vec3(noForces[30 * 3]) - glm::vec3(initial[30 * 3])), 0, 0.0001f);
-        // A nonzero range skips gravity and runs only the disabled curl module.
-        words[0] = std::bit_cast<uint32_t>(0.0f);
-        parameterBuffer->UpdateData(words.data(), words.size() * sizeof(uint32_t));
-        pc.OperationOffset = 1;
-        pc.OperationCount = uint32_t(program.Operations.size()) - pc.OperationOffset;
-        points->UpdateData(initial.data(), initial.size() * sizeof(glm::vec4));
-        dispatch(0.1f);
-        const auto skippedGravity = read();
-        EXPECT_NEAR(
-            glm::length(glm::vec3(skippedGravity[30 * 3]) - glm::vec3(initial[30 * 3])),
-            0,
-            0.0001f
-        );
-        pc.OperationOffset = 0;
-        pc.OperationCount = 1;
-        points->UpdateData(initial.data(), initial.size() * sizeof(glm::vec4));
-        dispatch(0.1f);
-        EXPECT_GT(
-            glm::length(glm::vec3(read()[30 * 3]) - glm::vec3(skippedGravity[30 * 3])),
-            0.000001f
-        );
-        pc.OperationCount = 0;
-        pc.Generation = 2;
-        dispatch(0);
-        const auto reset = read();
-        EXPECT_EQ(std::bit_cast<uint32_t>(reset[1].w), 2u);
-        EXPECT_NEAR(glm::length(glm::vec3(reset[3]) - glm::vec3(reset[0])), pc.SegmentLength, 0.00001f);
-        root[5].y = std::bit_cast<float>(8u);
-        particles->UpdateData(root.data(), sizeof(root));
-        dispatch(0);
-        EXPECT_EQ(std::bit_cast<uint32_t>(read()[0].w), 8u);
-        root[5].w = 0;
-        particles->UpdateData(root.data(), sizeof(root));
-        dispatch(0);
-        EXPECT_EQ(std::bit_cast<uint32_t>(read()[1].w), 0u);
-        // Exercise the maximum supported chain length after changing generation.
-        pc.PointCount = 96;
-        root[5].w = 1;
-        particles->UpdateData(root.data(), sizeof(root));
-        dispatch(1.0f / 60);
-        dispatch(0.1f);
-        const auto longest = read();
-        EXPECT_TRUE(std::isfinite(longest[(96 - 1) * 3].x));
-    }
-
     TEST(VulkanShaderTest, CompilesStrandMaterialVariantWithParticleGraphBindings)
     {
         const auto context = VulkanTestContext::Get().GetGraphicsContext();
@@ -326,7 +136,7 @@ namespace
         ASSERT_TRUE(compiled) << compiled.Diagnostics;
         ASSERT_TRUE(compiled.Material->ParticleStrandShader);
         EXPECT_TRUE(compiled.Material->ParticleStrandShader->HasBinding("particles"));
-        EXPECT_TRUE(compiled.Material->ParticleStrandShader->HasBinding("strandPoints"));
+        EXPECT_FALSE(compiled.Material->ParticleStrandShader->HasBinding("strandPoints"));
     }
 }
 
@@ -682,7 +492,7 @@ TEST(VulkanShaderTest, MissingSimulationShadersStopInitialization)
         "ParticlesSchedulerFinalize",
         "ParticlesSpawn",
         "ParticlesUpdate",
-        "StrandsUpdate"
+        "ParticlesConstraints"
     };
     const Aether::Rendering::FrameSubmission submission;
     const auto command = context->GetSecondaryCommandBuffer();

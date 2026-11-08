@@ -3,13 +3,14 @@
 #include <Engine/Graphics/Buffer.h>
 #include <Engine/Materials/MaterialInstance.h>
 #include <Engine/Aether/Core/Particle.h>
-#include <Engine/Aether/Strand.h>
 #include <Engine/Aether/Core/ParticleStateLayout.h>
 #include <Engine/Aether/Core/ResourceAllocation.h>
+#include <Engine/Aether/Rendering/EmitterRenderConfig.h>
 
 namespace Elixir::Aether::Simulation
 {
     using namespace Materials;
+    using namespace Rendering;
 
     /**
      * @brief Retains the particle-state buffer for one simulation layout.
@@ -22,9 +23,6 @@ namespace Elixir::Aether::Simulation
     {
         Core::EParticleStateLayout Layout = Core::EParticleStateLayout::CoreV1;
         Ref<StorageBuffer> ParticleStateBuffer;
-
-        /** Retains the persistent strand points until this frame is recorded. */
-        Ref<StorageBuffer> StrandPointBuffer;
     };
 
     /**
@@ -45,14 +43,8 @@ namespace Elixir::Aether::Simulation
         uint32_t LocalParticleOffset = 0;
         uint32_t ParticleCount = 0;
 
-        /** Absolute point offset in the shared strand buffer. */
-        uint32_t StrandPointOffset = 0;
-
-        /** Number of simulated control points per strand, including the root. */
-        uint32_t StrandPointCount = 0;
-
-        /** Immutable tube thickness and tessellation for this draw. */
-        Rendering::SStrandRenderConfig StrandRender;
+        /** Immutable geometry configuration for this emitter. */
+        Ref<const SEmitterRenderConfig> RenderConfig;
     };
 
     /**

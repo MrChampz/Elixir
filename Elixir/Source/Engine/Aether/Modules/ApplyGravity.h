@@ -15,12 +15,6 @@ namespace Elixir::Aether::Modules
         explicit ApplyGravity(glm::vec3 gravity)
             : m_Gravity(gravity) {}
 
-        /** @brief Supports particle velocity and free strand points. */
-        bool SupportsTarget(EModuleTarget target) const override
-        {
-            return target == EModuleTarget::Particle || target == EModuleTarget::StrandPoints;
-        }
-
         /** @brief Appends this module's GPU operations to the supplied context. */
         void Compile(ModuleCompileContext& context) const override
         {

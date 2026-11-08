@@ -157,14 +157,14 @@ namespace Elixir::Aether::Simulation
             Ref<ComputePipeline> SpawnPipeline;
             Ref<Shader> UpdateShader;
             Ref<ComputePipeline> UpdatePipeline;
-            Ref<Shader> StrandShader;
-            Ref<ComputePipeline> StrandPipeline;
+            Ref<Shader> ConstraintShader;
+            Ref<ComputePipeline> ConstraintPipeline;
 
             bool IsReady() const
             {
                 return ParticleStateBuffer &&
                     SpawnShader && SpawnPipeline &&
-                    UpdateShader && UpdatePipeline && StrandShader && StrandPipeline;
+                    UpdateShader && UpdatePipeline && ConstraintShader && ConstraintPipeline;
             }
         };
 
@@ -263,7 +263,17 @@ namespace Elixir::Aether::Simulation
         );
 
         // Dispatch GPU simulation passes for all instances in one layout batch.
-        void SimulateBatch(const Ref<CommandBuffer>& cmd, const SSimulationBatch& batch);
+        /**
+         * @brief Records particle updates and optional connection constraints.
+         * @param cmd Command buffer receiving the dispatches.
+         * @param batch Instances sharing the same particle layout.
+         * @param deltaSeconds Duration of this simulation step, in seconds.
+         */
+        void SimulateBatch(
+            const Ref<CommandBuffer>& cmd,
+            const SSimulationBatch& batch,
+            float deltaSeconds
+        );
 
         // Makes particle writes visible to the graphics pipeline.
         void PublishRenderBarrier(const Ref<CommandBuffer>& cmd, EParticleStateLayout layout) const;
@@ -306,7 +316,6 @@ namespace Elixir::Aether::Simulation
             GraphicsContext::FRAMES
         > m_ParameterUploads;
 
-        Ref<StorageBuffer> m_StrandPointBuffer;
         Ref<StorageBuffer> m_EmitterStateBuffer;
         Ref<StorageBuffer> m_SpawnRequestBuffer;
         Ref<DynamicStorageBuffer> m_TriggerTargetBuffer;

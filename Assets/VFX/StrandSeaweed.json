@@ -5,17 +5,14 @@
       "name": "Seaweed",
       "renderMode": "Strand",
       "simulationSpace": "Local",
-      "maxParticles": 48,
+      "maxParticles": 1344,
       "spawnRate": 0,
       "strand": {
-        "points": 28,
-        "segmentLength": 0.035,
-        "stiffness": 0.8,
-        "damping": 0.965,
         "widthScale": 0.23,
-        "solverIterations": 8,
         "radialSegments": 5,
-        "subdivisions": 3
+        "subdivisions": 3,
+        "maxPoints": 28,
+        "orderStep": 48
       },
       "material": {
         "color": [
@@ -63,12 +60,16 @@
             0.27,
             1
           ]
+        },
+        {
+          "type": "SetRibbonIdFromSpawnOrder",
+          "ribbonCount": 48,
+          "firstRibbonId": 0
         }
       ],
       "updateModules": [
         {
           "type": "ApplyGravity",
-          "target": "StrandPoints",
           "gravity": [
             0,
             0.75,
@@ -77,7 +78,6 @@
         },
         {
           "type": "CurlNoiseForce",
-          "target": "StrandPoints",
           "strength": 0.25,
           "frequency": 1.6,
           "scrollVelocity": [
@@ -86,14 +86,29 @@
             0.08
           ],
           "seed": 17
+        },
+        {
+          "type": "ApplyLinearDrag",
+          "drag": 2.1
+        },
+        {
+          "type": "DistanceConstraint",
+          "maxPoints": 28,
+          "orderStep": 48,
+          "segmentLength": 0.035,
+          "stiffness": 0.8,
+          "pinFirstParticle": true
         }
       ],
       "burst": {
-        "count": 48,
+        "count": 1344,
         "interval": 0
       },
       "particleState": {
         "killOnLifetimeExpired": false
+      },
+      "solver": {
+        "iterations": 8
       }
     }
   ]
