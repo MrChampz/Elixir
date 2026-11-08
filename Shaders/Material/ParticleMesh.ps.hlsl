@@ -112,8 +112,7 @@ float4 main(PSInput input) : SV_Target0
     const float diffuse = max(dot(N, lightDirection), 0.0f);
     const float rim = pow(1.0f - max(dot(N, V), 0.0f), 2.8f);
     const float3 litColor = (surface.BaseColor * (0.24f + diffuse * 0.92f)) +
-        surface.Emissive +
-        (RIM_COLOR * rim * 0.35f);
+        surface.Emissive + (RIM_COLOR * rim * 0.35f);
 
     return float4(litColor, surface.Opacity);
 }
