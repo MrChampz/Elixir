@@ -382,9 +382,12 @@ namespace Elixir::Aether::Rendering
 
                 case EParticleRenderMode::Strand:
                 {
-                    const auto* config = dynamic_cast<const SStrandRenderConfig*>(
-                        item.RenderConfig.get()
-                    );
+                    const SStrandRenderConfig defaults;
+                    const auto* config =
+                        dynamic_cast<const SStrandRenderConfig*>(item.RenderConfig.get());
+
+                    if (!item.RenderConfig)
+                        config = &defaults;
 
                     if (!config)
                     {

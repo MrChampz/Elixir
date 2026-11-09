@@ -8,7 +8,7 @@
 #include <Engine/Aether/Core/ColorCurveStore.h>
 #include <Engine/Aether/Modules/Module.h>
 #include <Engine/Aether/Simulation/SolverConfig.h>
-#include <Engine/Aether/Rendering/StrandRenderConfig.h>
+#include <Engine/Aether/Rendering/EmitterRenderConfig.h>
 #include <Engine/Aether/Effect/MaterialDescription.h>
 #include <Engine/Aether/Effect/MaterialFactory.h>
 
@@ -179,18 +179,19 @@ namespace Elixir::Aether
          */
         bool SetSolverConfig(const Simulation::SSolverConfig& config);
 
-        /** @brief Returns the tube thickness and tessellation for this emitter. */
-        const Rendering::SStrandRenderConfig& GetStrandRenderConfig() const
+        /** @brief Returns the immutable renderer configuration, or null for defaults. */
+        const Ref<const Rendering::SEmitterRenderConfig>& GetRenderConfig() const
         {
-            return m_StrandRender;
+            return m_RenderConfig;
         }
 
         /**
-         * @brief Updates the tube thickness and tessellation for this emitter.
-         * @param config Visual values to validate and copy.
-         * @return False for invalid values, leaving the previous configuration unchanged.
+         * @brief Assigns an immutable configuration interpreted by the renderer.
+         * @param config Shared configuration; null selects the renderer's defaults.
+         * @return False for invalid values, preserving the previous configuration.
+         * @pre Do not modify the configuration through mutable aliases after assignment.
          */
-        bool SetStrandRenderConfig(const Rendering::SStrandRenderConfig& config);
+        bool SetRenderConfig(Ref<const Rendering::SEmitterRenderConfig> config);
 
         /** @brief Reports whether lifetime expiry removes particles from this emitter. */
         bool ShouldKillOnLifetimeExpired() const { return m_KillOnLifetimeExpired; }
@@ -382,7 +383,7 @@ namespace Elixir::Aether
         EParticleRenderMode m_RenderMode = EParticleRenderMode::Sprite;
         EParticleSimulationSpace m_SimulationSpace = EParticleSimulationSpace::World;
         SSolverConfig m_Solver;
-        SStrandRenderConfig m_StrandRender;
+        Ref<const Rendering::SEmitterRenderConfig> m_RenderConfig;
         bool m_KillOnLifetimeExpired = true;
 
         std::optional<Effect::SMaterialDescription> m_MaterialDescription;

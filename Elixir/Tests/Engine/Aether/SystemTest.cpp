@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <Engine/Aether/System.h>
+#include <Engine/Aether/Rendering/StrandRenderConfig.h>
 #include <Engine/Aether/Modules/ApplyGravity.h>
 #include <Engine/Aether/Modules/DistanceConstraint.h>
 #include <Engine/Aether/Modules/ApplyLinearDrag.h>
@@ -261,7 +262,9 @@ TEST(SystemTest, CompilesConstraintModulesWithoutChangingParticleOrUpdateRanges)
     render.RadialSegments = 6;
     render.OrderStep = 3;
     render.MaxPoints = 32;
-    ASSERT_TRUE(first.SetStrandRenderConfig(render));
+    const auto renderConfig =
+        CreateRef<const Aether::Rendering::SStrandRenderConfig>(render);
+    ASSERT_TRUE(first.SetRenderConfig(renderConfig));
     auto& sprites = system->AddEmitter("Sprites", 7, 0);
     sprites.AddModule(CreateScope<Modules::DistanceConstraint>(config));
     auto& second = system->AddEmitter("Second", 48, 0);
@@ -286,7 +289,9 @@ TEST(SystemTest, CompilesConstraintModulesWithoutChangingParticleOrUpdateRanges)
     );
     ASSERT_NE(snapshot, nullptr);
     render.RadialSegments = 12;
-    ASSERT_TRUE(first.SetStrandRenderConfig(render));
+    const auto changedRenderConfig =
+        CreateRef<const Aether::Rendering::SStrandRenderConfig>(render);
+    ASSERT_TRUE(first.SetRenderConfig(changedRenderConfig));
     config.Stiffness = 0.5f;
     first.AddModule(CreateScope<Modules::DistanceConstraint>(config));
     solver.Iterations = 4;
@@ -316,6 +321,29 @@ TEST(SystemTest, RejectsInvalidConstraintModulesDuringCompilation)
     const auto instance = system->CreateInstance();
     ASSERT_TRUE(instance);
     EXPECT_FALSE(runtime.Registry.Register(instance));
+}
+
+TEST(SystemTest, RenderConfigIsValidatedSharedAndCanBeCleared)
+{
+    const auto system = CreateRef<System>("Generic render configuration");
+    auto& emitter = system->AddEmitter("Particles", 8, 0);
+    EXPECT_FALSE(emitter.GetRenderConfig());
+    const auto config = CreateRef<const Aether::Rendering::SStrandRenderConfig>();
+    ASSERT_TRUE(emitter.SetRenderConfig(config));
+    EXPECT_EQ(emitter.GetRenderConfig(), config);
+    const auto compiled = Compile(system);
+    ASSERT_EQ(compiled.Emitters.size(), 1u);
+    EXPECT_EQ(compiled.Emitters[0].RenderConfig, config);
+    Aether::Rendering::SStrandRenderConfig invalid;
+    invalid.WidthScale = 0;
+    const auto invalidConfig =
+        CreateRef<const Aether::Rendering::SStrandRenderConfig>(invalid);
+    EXPECT_FALSE(emitter.SetRenderConfig(invalidConfig));
+    EXPECT_EQ(emitter.GetRenderConfig(), config);
+    ASSERT_TRUE(emitter.SetRenderConfig(nullptr));
+    EXPECT_FALSE(emitter.GetRenderConfig());
+    EXPECT_FALSE(Compile(system).Emitters[0].RenderConfig);
+    EXPECT_EQ(compiled.Emitters[0].RenderConfig, config);
 }
 
 TEST(SystemTest, LifetimeDeathPolicyDefaultsToEnabledAndIsSnapshottedIndependently)

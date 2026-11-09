@@ -8,6 +8,7 @@
 #include <Engine/Aether/Core/Operand.h>
 #include "../TestInstanceRegistry.h"
 #include <Engine/Aether/Effect/Effect.h>
+#include <Engine/Aether/Rendering/StrandRenderConfig.h>
 #include <Engine/Aether/Effect/ModuleRegistry.h>
 #include <Engine/Aether/Core/Operations/RandomRange.h>
 #include <Engine/Aether/Core/Operations/SampleCurve.h>
@@ -505,7 +506,11 @@ TEST(ModuleRegistryTest, LoadsStrandConfigurationAndRejectsInvalidRanges)
     );
     ASSERT_TRUE(constraint);
     EXPECT_EQ(constraint->GetPhase(), EModulePhase::Update);
-    EXPECT_EQ(emitter.GetStrandRenderConfig().RadialSegments, 6);
+    const auto* render = dynamic_cast<const Aether::Rendering::SStrandRenderConfig*>(
+        emitter.GetRenderConfig().get()
+    );
+    ASSERT_NE(render, nullptr);
+    EXPECT_EQ(render->RadialSegments, 6u);
     ASSERT_TRUE(emitter.GetMaterialDescription());
     EXPECT_EQ(emitter.GetMaterialDescription()->BlendMode, Elixir::Materials::EMaterialBlendMode::Opaque);
     for (const auto* fields : {

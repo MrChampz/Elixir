@@ -675,3 +675,38 @@ TEST(VulkanShaderTest, ComposedCurlNoisePreservesForceAndRuntimeBindings)
         EXPECT_EQ(result[2], glm::vec4(0.2f, 0.3f, 0.4f, 0.0f));
     }
 }
+
+TEST(VulkanShaderTest, StrandRendererUsesDefaultsWithoutAuthoredRenderConfig)
+{
+    const auto context = VulkanTestContext::Get().GetGraphicsContext();
+    ShaderLoader loader(context);
+    Materials::MaterialRegistry registry;
+    Materials::MaterialSystem materials(
+        context,
+        {},
+        &loader,
+        context->GetRenderTarget(),
+        context->GetDepthStencilRenderTarget()
+    );
+    Aether::Manager manager(context, &loader, registry, materials);
+    const auto system = CreateRef<Aether::System>("Default strand configuration");
+    auto& emitter = system->AddEmitter("Particles", 2, 0);
+    emitter.SetRenderMode(Aether::Core::EParticleRenderMode::Strand);
+    emitter.SetBurst(2, 0);
+    ASSERT_FALSE(emitter.GetRenderConfig());
+    const auto instance = system->CreateInstance();
+    ASSERT_TRUE(manager.Add(instance));
+    PerspectiveCamera camera(45, 1, 0.01f, 100);
+    Materials::Rendering::SRenderResult result;
+    context->RenderFrame([&]()
+    {
+        materials.BeginFrame();
+        manager.BeginFrame(Timestep(1.0f / 60));
+        manager.Render(camera, context->GetRenderTarget());
+        result = materials.RenderFrame();
+    });
+    ASSERT_TRUE(context->RunRenderTaskAndWait([] {}));
+    context->WaitDeviceIdle();
+    EXPECT_EQ(result.DrawCount, 1u);
+    EXPECT_TRUE(manager.Remove(instance));
+}

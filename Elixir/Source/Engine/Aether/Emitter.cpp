@@ -23,15 +23,15 @@ namespace Elixir::Aether
         return true;
     }
 
-    bool Emitter::SetStrandRenderConfig(const SStrandRenderConfig& config)
+    bool Emitter::SetRenderConfig(Ref<const SEmitterRenderConfig> config)
     {
-        if (!config.IsValid())
+        if (config && !config->IsValid())
         {
-            EE_CORE_ERROR("Invalid strand render configuration for emitter '{}'.", m_Name);
+            EE_CORE_ERROR("Invalid render configuration for emitter '{}'.", m_Name);
             return false;
         }
 
-        m_StrandRender = config;
+        m_RenderConfig = std::move(config);
         return true;
     }
 
@@ -68,8 +68,7 @@ namespace Elixir::Aether
         emitter.Id = m_Id;
         emitter.RenderMode = m_RenderMode;
         emitter.Solver = m_Solver;
-        if (m_RenderMode == EParticleRenderMode::Strand)
-            emitter.RenderConfig = CreateRef<Rendering::SStrandRenderConfig>(m_StrandRender);
+        emitter.RenderConfig = m_RenderConfig;
         emitter.KillOnLifetimeExpired = m_KillOnLifetimeExpired;
         emitter.SimulationSpace = m_SimulationSpace;
         emitter.MaxParticles = m_MaxParticles;

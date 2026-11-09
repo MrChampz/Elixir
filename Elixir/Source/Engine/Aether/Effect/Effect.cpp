@@ -4,6 +4,7 @@
 #include <Engine/Aether/Effect/MaterialDescription.h>
 #include <Engine/Aether/Effect/MaterialFactory.h>
 #include <Engine/Aether/Effect/ModuleRegistry.h>
+#include <Engine/Aether/Rendering/StrandRenderConfig.h>
 
 #include <simdjson.h>
 #include <magic_enum/magic_enum.hpp>
@@ -132,7 +133,10 @@ namespace Elixir::Aether::Effect
                 if (HasField(object, "subdivisions"))
                     config.Subdivisions = RequireUInt(object, "subdivisions");
 
-                if (!Failed() && !emitter.SetStrandRenderConfig(config))
+                if (Failed()) return;
+
+                const auto renderConfig = CreateRef<const SStrandRenderConfig>(config);
+                if (!emitter.SetRenderConfig(renderConfig))
                     Fail("Invalid strand rendering configuration.");
             }
 
