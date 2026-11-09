@@ -311,7 +311,7 @@ TEST(ParticlesConstraintsTest, TubeReadsParticlePositionsAndRejectsBrokenConnect
 
 }
 
-TEST(ParticlesConstraintsTest, SolverAlternatesModulesAndKeepsEmitterRangesIndependent)
+TEST(ParticlesConstraintsTest, SolverAlternatesModulesForRibbonAndStrandEmitters)
 {
     const auto context = VulkanTestContext::Get().GetGraphicsContext();
     ShaderLoader loader(context);
@@ -319,9 +319,12 @@ TEST(ParticlesConstraintsTest, SolverAlternatesModulesAndKeepsEmitterRangesIndep
     const auto system = Aether::Effect::ParseEffect(R"({
         "name":"Coupled constraints",
         "emitters":[{
-            "name":"Coupled", "maxParticles":2, "spawnRate":0,
+            "name":"Coupled", "renderMode":"Ribbon", "maxParticles":2, "spawnRate":0,
             "burst":{"count":2,"interval":0},
-            "spawnModules":[{"type":"SetLifetime","min":10,"max":10}],
+            "spawnModules":[
+                {"type":"SetLifetime","min":10,"max":10},
+                {"type":"SetGroupIdFromSpawnOrder","groupCount":1,"firstGroupId":16777217}
+            ],
             "solver":{"iterations":12},
             "updateModules":[
                 {"type":"DistanceConstraint","maxPoints":2,
@@ -331,9 +334,12 @@ TEST(ParticlesConstraintsTest, SolverAlternatesModulesAndKeepsEmitterRangesIndep
                  "segmentLength":3,"stiffness":0.5}
             ]
         },{
-            "name":"Single", "maxParticles":2, "spawnRate":0,
+            "name":"Single", "renderMode":"Strand", "maxParticles":2, "spawnRate":0,
             "burst":{"count":2,"interval":0},
-            "spawnModules":[{"type":"SetLifetime","min":10,"max":10}],
+            "spawnModules":[
+                {"type":"SetLifetime","min":10,"max":10},
+                {"type":"SetGroupIdFromSpawnOrder","groupCount":1,"firstGroupId":16777219}
+            ],
             "solver":{"iterations":12},
             "updateModules":[
                 {"type":"DistanceConstraint","maxPoints":2,
@@ -377,6 +383,10 @@ TEST(ParticlesConstraintsTest, SolverAlternatesModulesAndKeepsEmitterRangesIndep
     EXPECT_NEAR(result[1].PositionSize.y, 7.0f / 3, 0.00001f);
     EXPECT_NEAR(result[2].PositionSize.y, 0, 0.00001f);
     EXPECT_NEAR(result[3].PositionSize.y, 1.0f - std::pow(0.5f, 12), 0.00001f);
+    EXPECT_EQ(std::bit_cast<uint32_t>(result[0].TangentGroup.w), 16'777'217u);
+    EXPECT_EQ(std::bit_cast<uint32_t>(result[1].TangentGroup.w), 16'777'217u);
+    EXPECT_EQ(std::bit_cast<uint32_t>(result[2].TangentGroup.w), 16'777'219u);
+    EXPECT_EQ(std::bit_cast<uint32_t>(result[3].TangentGroup.w), 16'777'219u);
     for (const auto& particle : result)
     {
         EXPECT_EQ(particle.Metadata.w, 1);

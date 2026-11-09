@@ -342,7 +342,7 @@ namespace EditorVFX
             R"({"type":"SetPositionDisk","center":[0,0,0],"radius":0.5})",
             R"({"type":"SetVelocityCone","direction":[0,1,0],"angle":0.35,"minSpeed":1,"maxSpeed":2})",
             R"({"type":"SetRotation","min":0,"max":6.2831853})", R"({"type":"SetScale","min":0.8,"max":1.2})",
-            R"({"type":"SetRibbonId","ribbonId":0})"
+            R"({"type":"SetGroupId","groupId":0})"
         } : std::vector<std::string>{
             R"({"type":"ApplyGravity","gravity":[0,-9.8,0,0]})", R"({"type":"ApplyLinearDrag","drag":0.1})",
             R"({"type":"CurlNoiseForce","strength":0.65,"frequency":2.2,"scrollVelocity":[0.12,0.09,0.07],"seed":0})",

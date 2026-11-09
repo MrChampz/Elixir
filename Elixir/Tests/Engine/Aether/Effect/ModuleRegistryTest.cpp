@@ -27,8 +27,8 @@
 #include <Engine/Aether/Modules/SetPositionDisk.h>
 #include <Engine/Aether/Modules/SetPositionOnCircle.h>
 #include <Engine/Aether/Modules/SetPositionVortexRibbonPath.h>
-#include <Engine/Aether/Modules/SetRibbonId.h>
-#include <Engine/Aether/Modules/SetRibbonIdFromSpawnOrder.h>
+#include <Engine/Aether/Modules/SetGroupId.h>
+#include <Engine/Aether/Modules/SetGroupIdFromSpawnOrder.h>
 #include <Engine/Aether/Modules/SetRotation.h>
 #include <Engine/Aether/Modules/SetScale.h>
 #include <Engine/Aether/Modules/SetSize.h>
@@ -179,22 +179,22 @@ TEST(ModuleRegistryTest, CreatesSetPositionVortexRibbonPathFromJson)
     EXPECT_NE(dynamic_cast<const SetPositionVortexRibbonPath*>(module.get()), nullptr);
 }
 
-TEST(ModuleRegistryTest, CreatesSetRibbonIdFromJson)
+TEST(ModuleRegistryTest, CreatesSetGroupIdFromJson)
 {
     Effect::ModuleParseContext context;
-    const auto module = CreateRegistered("SetRibbonId", R"({"ribbonId":3})", context);
+    const auto module = CreateRegistered("SetGroupId", R"({"groupId":3})", context);
     ASSERT_FALSE(context.Failed()) << context.GetError();
     ASSERT_TRUE(module);
-    EXPECT_NE(dynamic_cast<const SetRibbonId*>(module.get()), nullptr);
+    EXPECT_NE(dynamic_cast<const SetGroupId*>(module.get()), nullptr);
 }
 
-TEST(ModuleRegistryTest, CreatesSetRibbonIdFromSpawnOrderFromJson)
+TEST(ModuleRegistryTest, CreatesSetGroupIdFromSpawnOrderFromJson)
 {
     Effect::ModuleParseContext context;
-    const auto module = CreateRegistered("SetRibbonIdFromSpawnOrder", R"({"ribbonCount":0,"firstRibbonId":4})", context);
+    const auto module = CreateRegistered("SetGroupIdFromSpawnOrder", R"({"groupCount":0,"firstGroupId":4})", context);
     ASSERT_FALSE(context.Failed()) << context.GetError();
     ASSERT_TRUE(module);
-    EXPECT_NE(dynamic_cast<const SetRibbonIdFromSpawnOrder*>(module.get()), nullptr);
+    EXPECT_NE(dynamic_cast<const SetGroupIdFromSpawnOrder*>(module.get()), nullptr);
 }
 
 TEST(ModuleRegistryTest, CreatesSizeOverLifeFromJson)
@@ -337,7 +337,7 @@ TEST(ModuleRegistryTest, PreservesParameterBindingsAndOptionalDefaults)
 TEST(ModuleRegistryTest, RejectsInvalidFieldsAndPreservesTheFirstError)
 {
     const std::array cases{
-        std::pair{ "SetRibbonId", R"({"ribbonId":4294967296})" },
+        std::pair{ "SetGroupId", R"({"groupId":4294967296})" },
         std::pair{ "SetPositionDisk", R"({"center":[1,2],"radius":4})" },
         std::pair{ "SetPositionDisk", R"({"radius":4})" },
         std::pair{ "SetLifetime", R"({"min":true,"max":false})" },

@@ -36,8 +36,8 @@ TEST_P(OperationDefinitionTest, ValidatesEveryInputAndKeepsEmissionAtomic)
     EXPECT_EQ(operation, GetParam());
     const auto* definition = &operation->GetDefinition();
     const auto type = GetParam()->GetDefinition().Type;
-    const auto target = type == EOperationType::SetRibbonIdFromSpawnOrder
-        ? EParticleAttribute::RibbonId : EParticleAttribute::Temp0;
+    const auto target = type == EOperationType::SetGroupIdFromSpawnOrder
+        ? EParticleAttribute::GroupId : EParticleAttribute::Temp0;
     std::vector<SGPUOperand> operands;
     for (const auto type : definition->Inputs) operands.push_back(MakeOperand(context, type));
 
@@ -86,11 +86,11 @@ TEST_P(OperationDefinitionTest, DefinesValidDestinationsForItsRuntimeImplementat
     for (uint32_t value = 0; value <= uint32_t(EParticleAttribute::Temp3); ++value)
     {
         const auto target = EParticleAttribute(value);
-        bool expected = target != EParticleAttribute::RibbonId;
+        bool expected = target != EParticleAttribute::GroupId;
         if (type == EOperationType::SetLiteral || type == EOperationType::CopyFromAttribute)
             expected = true;
-        else if (type == EOperationType::SetRibbonIdFromSpawnOrder)
-            expected = target == EParticleAttribute::RibbonId;
+        else if (type == EOperationType::SetGroupIdFromSpawnOrder)
+            expected = target == EParticleAttribute::GroupId;
         else if (type == EOperationType::SampleCurlNoise)
             expected = target == EParticleAttribute::Position ||
                 target == EParticleAttribute::Velocity ||

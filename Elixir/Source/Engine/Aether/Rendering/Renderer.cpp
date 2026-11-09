@@ -93,7 +93,7 @@ namespace Elixir::Aether::Rendering
                     { EDataType::Float4,  "PositionSize"    },
                     { EDataType::Float4,  "VelocityAge"     },
                     { EDataType::Float4,  "Transform"       },
-                    { EDataType::Float4,  "TangentRibbonId" },
+                    { EDataType::Float4,  "TangentGroupId" },
                     { EDataType::Float4,  "Color"           },
                     { EDataType::Float4,  "Metadata"        }
                 },
@@ -114,7 +114,7 @@ namespace Elixir::Aether::Rendering
                     { EDataType::Float4,  "PositionSize"    },
                     { EDataType::Float4,  "VelocityAge"     },
                     { EDataType::Float4,  "Transform"       },
-                    { EDataType::Float4,  "TangentRibbonId" },
+                    { EDataType::Float4,  "TangentGroupId" },
                     { EDataType::Float4,  "Color"           },
                     { EDataType::Float4,  "Metadata"        }
                 },

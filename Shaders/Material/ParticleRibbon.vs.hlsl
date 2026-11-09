@@ -55,7 +55,7 @@ bool IsAlive(SGPUParticle particle)
         particle.Size > 0.0001;
 }
 
-bool SameRibbon(uint a, uint b)
+bool SameGroup(uint a, uint b)
 {
     return a == b;
 }
@@ -66,7 +66,7 @@ uint LinkOrder(SGPUParticle particle)
 }
 
 // Maximum number of interleaved ribbons per emitter. Particles belonging to the
-// same ribbon are spaced exactly (ribbonCount) slots apart in the circular buffer
+// same ribbon are spaced exactly (groupCount) slots apart in the circular buffer
 // because emissionIndex increments by 1 per spawn and ribbons are assigned round-robin.
 // Searching only this many slots forward reduces TryBuildSegment from O(N) to O(W),
 // turning the overall O(N²) vertex shader cost into O(W·N).
@@ -92,7 +92,7 @@ bool TryBuildSegment(
     if (!IsAlive(startParticle))
         return false;
 
-    uint ribbonId       = startParticle.RibbonId;
+    uint groupId        = startParticle.GroupId;
     uint startLinkOrder = LinkOrder(startParticle);
     uint bestLinkDelta  = 0xFFFFFFFFu; // UINT_MAX
     bool  found         = false;
@@ -112,7 +112,7 @@ bool TryBuildSegment(
         // subtraction would wrap around to a near-UINT_MAX value and falsely pass
         // the range check, connecting the ribbon start to stale/old-cycle particles.
         if (!IsAlive(candidate) ||
-            !SameRibbon(candidate.RibbonId, ribbonId) ||
+            !SameGroup(candidate.GroupId, groupId) ||
             candidateLinkOrder <= startLinkOrder)
             continue;
 

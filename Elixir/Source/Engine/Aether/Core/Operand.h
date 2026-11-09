@@ -254,7 +254,7 @@ namespace Elixir::Aether::Core
             case EParticleAttribute::Tangent:
                 return EOperandInput::Float3;
 
-            case EParticleAttribute::RibbonId:
+            case EParticleAttribute::GroupId:
                 return EOperandInput::UInt;
 
             case EParticleAttribute::Color:

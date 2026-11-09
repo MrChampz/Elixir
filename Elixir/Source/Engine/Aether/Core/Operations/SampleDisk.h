@@ -43,7 +43,7 @@ namespace Elixir::Aether::Core::Operations
         bool IsValidTarget(const EParticleAttribute target) const override
         {
             return target <= EParticleAttribute::Temp3 &&
-                target != EParticleAttribute::RibbonId;
+                target != EParticleAttribute::GroupId;
         }
     };
 }

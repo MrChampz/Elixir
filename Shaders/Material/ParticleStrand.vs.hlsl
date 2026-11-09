@@ -59,7 +59,7 @@ bool Connected(SGPUParticle first, SGPUParticle second)
         second.Alive >= 0.5 &&
         pc.OrderStep > 0 &&
         first.EmitterIndex == second.EmitterIndex &&
-        first.RibbonId == second.RibbonId &&
+        first.GroupId == second.GroupId &&
         second.LinkOrder >= pc.OrderStep && 
         second.LinkOrder - pc.OrderStep == first.LinkOrder &&
         (pc.MaxPoints == 0 || (second.LinkOrder / pc.OrderStep) % pc.MaxPoints != 0);

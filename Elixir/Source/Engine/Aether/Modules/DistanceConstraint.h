@@ -7,7 +7,7 @@ namespace Elixir::Aether::Modules
 {
     using namespace Effect;
 
-    /** Constrains distances between live particles with matching emitter and RibbonId. */
+    /** Constrains distances between live particles with matching emitter and GroupId. */
     class ELIXIR_API DistanceConstraint final : public UpdateModule
     {
     public:

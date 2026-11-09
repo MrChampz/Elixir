@@ -62,9 +62,9 @@
           ]
         },
         {
-          "type": "SetRibbonIdFromSpawnOrder",
-          "ribbonCount": 48,
-          "firstRibbonId": 0
+          "type": "SetGroupIdFromSpawnOrder",
+          "groupCount": 48,
+          "firstGroupId": 0
         }
       ],
       "updateModules": [

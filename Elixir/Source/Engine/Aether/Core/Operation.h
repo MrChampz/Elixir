@@ -21,7 +21,7 @@ namespace Elixir::Aether::Core
         SetPositionOnCircle = 10,
         SetPositionCircularPath = 11,
         SetPositionVortexRibbonPath = 12,
-        SetRibbonIdFromSpawnOrder = 13,
+        SetGroupIdFromSpawnOrder = 13,
         SampleCurve = 14,
         SampleColorCurve = 15,
         Add = 16,

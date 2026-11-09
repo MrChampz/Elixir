@@ -6,7 +6,7 @@ namespace Elixir::Aether::Simulation
      * Describes distance constraints emitted by a DistanceConstraint module.
      *
      * Spawn order maps directly to slots in the emitter's particle ring. Connections
-     * require live particles with matching EmitterIndex and RibbonId. LinkOrder must
+     * require live particles with matching EmitterIndex and GroupId. LinkOrder must
      * advance by OrderStep. A new chain starts every MaxPoints orders within each
      * interleaved sequence. Dead particles and order gaps break connections.
      */

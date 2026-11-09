@@ -10,7 +10,7 @@ void SetLiteral(
     inout SOperationExecutorContext context
 )
 {
-    if (resolver.Operation.Target == ParticleAttribute_RibbonId)
+    if (resolver.Operation.Target == ParticleAttribute_GroupId)
     {
         uint value = resolver.ReadUInt(SetLiteral_Value);
 

@@ -9,7 +9,7 @@ struct SGPUParticle
     float  Age;
     float4 Transform;       // x = rotation, y = scale
     float3 Tangent;
-    uint   RibbonId;
+    uint   GroupId;
     float4 Color;
     uint   EmitterIndex;
     uint   LinkOrder;

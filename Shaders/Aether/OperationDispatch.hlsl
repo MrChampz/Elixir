@@ -9,7 +9,7 @@
 #include "Operations/SetPositionOnCircle.hlsl"
 #include "Operations/SetPositionCircularPath.hlsl"
 #include "Operations/SetPositionVortexRibbonPath.hlsl"
-#include "Operations/SetRibbonIdFromSpawnOrder.hlsl"
+#include "Operations/SetGroupIdFromSpawnOrder.hlsl"
 #include "Operations/AddWithDelta.hlsl"
 #include "Operations/Dampen.hlsl"
 #include "Operations/LerpOverLife.hlsl"
@@ -49,8 +49,8 @@ void ExecuteOperation(
         SetPositionCircularPath(executor, resolver, context);
     else if (operation.Type == Operation_SetPositionVortexRibbonPath)
         SetPositionVortexRibbonPath(executor, resolver, context);
-    else if (operation.Type == Operation_SetRibbonIdFromSpawnOrder)
-        SetRibbonIdFromSpawnOrder(executor, resolver, context);
+    else if (operation.Type == Operation_SetGroupIdFromSpawnOrder)
+        SetGroupIdFromSpawnOrder(executor, resolver, context);
     else if (operation.Type == Operation_AddWithDelta)
         AddWithDelta(executor, resolver, context);
     else if (operation.Type == Operation_Dampen)

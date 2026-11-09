@@ -11,7 +11,7 @@
 #include <Engine/Aether/Core/Operations/SampleCone.h>
 #include <Engine/Aether/Core/Operations/AddWithDelta.h>
 #include <Engine/Aether/Core/Operations/SetPositionVortexRibbonPath.h>
-#include <Engine/Aether/Core/Operations/SetRibbonIdFromSpawnOrder.h>
+#include <Engine/Aether/Core/Operations/SetGroupIdFromSpawnOrder.h>
 #include <Engine/Aether/Core/Operations/SampleCurve.h>
 #include <Engine/Aether/Core/Operations/Add.h>
 #include <Engine/Aether/Core/Operations/Mul.h>
@@ -24,8 +24,8 @@
 #include <Engine/Aether/Modules/SetLifetime.h>
 #include <Engine/Aether/Modules/SetVelocityCone.h>
 #include <Engine/Aether/Modules/SetPositionVortexRibbonPath.h>
-#include <Engine/Aether/Modules/SetRibbonId.h>
-#include <Engine/Aether/Modules/SetRibbonIdFromSpawnOrder.h>
+#include <Engine/Aether/Modules/SetGroupId.h>
+#include <Engine/Aether/Modules/SetGroupIdFromSpawnOrder.h>
 
 #include "TestInstanceRegistry.h"
 
@@ -257,48 +257,48 @@ TEST(ModuleCompileTest, KeepsLargeRibbonIntegersExactUntilParticleStorage)
     SCompiledModuleData program;
     const std::vector<Elixir::Aether::Core::SCompiledParameter> parameters;
     ModuleCompileContext context(program, parameters, "", 1);
-    SetRibbonId(UINT32_MAX).Compile(context);
-    SetRibbonIdFromSpawnOrder(17, UINT32_MAX).Compile(context);
+    SetGroupId(UINT32_MAX).Compile(context);
+    SetGroupIdFromSpawnOrder(17, UINT32_MAX).Compile(context);
     const auto identifier = Reference(program, 0, Operations::SetLiteral::Inputs::Value);
     EXPECT_EQ(identifier >> OperandSourceShift, uint32_t(EOperandSource::Constant));
     EXPECT_EQ(program.Constants.at(identifier & OperandIndexMask), UINT32_MAX);
-    EXPECT_EQ(Reference(program, 1, Operations::SetRibbonIdFromSpawnOrder::Inputs::FirstRibbonId), identifier);
-    EXPECT_EQ(Reference(program, 1, Operations::SetRibbonIdFromSpawnOrder::Inputs::RibbonCount), Encoded(EOperandSource::Immediate, EOperandFormat::UInt, 17));
+    EXPECT_EQ(Reference(program, 1, Operations::SetGroupIdFromSpawnOrder::Inputs::FirstGroupId), identifier);
+    EXPECT_EQ(Reference(program, 1, Operations::SetGroupIdFromSpawnOrder::Inputs::GroupCount), Encoded(EOperandSource::Immediate, EOperandFormat::UInt, 17));
 }
 
-TEST(ModuleCompileTest, RequiresUnsignedRibbonIdsForDestinationsAndAttributeReads)
+TEST(ModuleCompileTest, RequiresUnsignedGroupIdsForDestinationsAndAttributeReads)
 {
     SCompiledModuleData program;
     const std::vector<Elixir::Aether::Core::SCompiledParameter> parameters;
     ModuleCompileContext context(program, parameters, "", 1);
 
-    context.Emit(EOperationType::SetLiteral, EParticleAttribute::RibbonId, {context.Scalar(1)});
+    context.Emit(EOperationType::SetLiteral, EParticleAttribute::GroupId, {context.Scalar(1)});
     context.Emit(EOperationType::CopyFromAttribute, EParticleAttribute::Scale,
-        {context.Attribute(EParticleAttribute::RibbonId, EOperandInput::Float)});
-    context.Emit(EOperationType::RandomRange, EParticleAttribute::RibbonId,
+        {context.Attribute(EParticleAttribute::GroupId, EOperandInput::Float)});
+    context.Emit(EOperationType::RandomRange, EParticleAttribute::GroupId,
         {context.UInt(1), context.UInt(2)});
     EXPECT_TRUE(program.Operations.empty());
     EXPECT_TRUE(program.Operands.empty());
 
     EXPECT_FALSE(context.IsValid());
     ModuleCompileContext validContext(program, parameters, "", 1);
-    validContext.Emit(EOperationType::SetLiteral, EParticleAttribute::RibbonId,
+    validContext.Emit(EOperationType::SetLiteral, EParticleAttribute::GroupId,
         {validContext.UInt(UINT32_MAX)});
-    validContext.Emit(EOperationType::CopyFromAttribute, EParticleAttribute::RibbonId,
-        {validContext.Attribute(EParticleAttribute::RibbonId, EOperandInput::UInt)});
+    validContext.Emit(EOperationType::CopyFromAttribute, EParticleAttribute::GroupId,
+        {validContext.Attribute(EParticleAttribute::GroupId, EOperandInput::UInt)});
     ASSERT_EQ(program.Operations.size(), 2u);
     EXPECT_EQ(Reference(program, 1, Operations::CopyFromAttribute::Inputs::Value),
-        Encoded(EOperandSource::ParticleAttribute, GetAttributeOperandFormat(EParticleAttribute(uint32_t(EParticleAttribute::RibbonId))), uint32_t(EParticleAttribute::RibbonId)));
+        Encoded(EOperandSource::ParticleAttribute, GetAttributeOperandFormat(EParticleAttribute(uint32_t(EParticleAttribute::GroupId))), uint32_t(EParticleAttribute::GroupId)));
 }
 
-TEST(ModuleCompileTest, RejectsOtherDestinationsForRibbonIdsFromSpawnOrder)
+TEST(ModuleCompileTest, RejectsOtherDestinationsForGroupIdsFromSpawnOrder)
 {
     SCompiledModuleData program;
     const std::vector<Elixir::Aether::Core::SCompiledParameter> parameters;
     ModuleCompileContext context(program, parameters, "", 1);
     const auto count = context.UInt(2);
     const auto firstId = context.UInt(1);
-    context.Emit(EOperationType::SetRibbonIdFromSpawnOrder, EParticleAttribute::RibbonId, {count, firstId});
+    context.Emit(EOperationType::SetGroupIdFromSpawnOrder, EParticleAttribute::GroupId, {count, firstId});
     ASSERT_EQ(program.Operations.size(), 1u);
     const auto references = program.Operands;
     const auto constants = program.Constants;
@@ -306,12 +306,12 @@ TEST(ModuleCompileTest, RejectsOtherDestinationsForRibbonIdsFromSpawnOrder)
     for (uint32_t value = 0; value <= uint32_t(EParticleAttribute::Temp3); ++value)
     {
         const auto target = EParticleAttribute(value);
-        if (target == EParticleAttribute::RibbonId)
+        if (target == EParticleAttribute::GroupId)
             continue;
 
-        context.Emit(EOperationType::SetRibbonIdFromSpawnOrder, target, {count, firstId});
+        context.Emit(EOperationType::SetGroupIdFromSpawnOrder, target, {count, firstId});
         ASSERT_EQ(program.Operations.size(), 1u) << "target " << value;
-        EXPECT_EQ(program.Operations[0].Target, EParticleAttribute::RibbonId);
+        EXPECT_EQ(program.Operations[0].Target, EParticleAttribute::GroupId);
         EXPECT_EQ(program.Operands, references);
         EXPECT_EQ(program.Constants, constants);
     }
@@ -436,7 +436,7 @@ TEST(ModuleCompileTest, CompactsRemainingConstantsAndPreservesSharingAndIntegerB
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::Scale, {context.Scalar(2)});
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::Position, {context.Vector({1, 2, 3})});
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::Velocity, {context.Vector({1, 2, 3})});
-    SetRibbonId(UINT32_MAX).Compile(context);
+    SetGroupId(UINT32_MAX).Compile(context);
     program.CompactConstants();
     ASSERT_EQ(program.Constants.size(), 5u);
     EXPECT_FLOAT_EQ(Literal(program, 0, 0), 2);
@@ -526,7 +526,7 @@ TEST(ModuleCompileTest, BindsNativeParameterFormatsAndKeepsTheirOffsetsDuringCom
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::Position, {context.Vector({}, "Vector2")});
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::Velocity, {context.Vector({}, "Vector3")});
     context.Emit(EOperationType::SetLiteral, EParticleAttribute::Color, {context.Value({}, "Vector4")});
-    context.Emit(EOperationType::SetLiteral, EParticleAttribute::RibbonId, {context.UInt(0, "UInt")});
+    context.Emit(EOperationType::SetLiteral, EParticleAttribute::GroupId, {context.UInt(0, "UInt")});
     context.Emit(EOperationType::SampleCurve, EParticleAttribute::Scale, {context.Curve("Curve"), context.Scalar(0.5f)});
     ASSERT_EQ(program.Operations.size(), 6u);
     const std::array formats{EOperandFormat::Float, EOperandFormat::Float2, EOperandFormat::Float3,
@@ -614,7 +614,7 @@ TEST(ModuleCompileTest, MovesUnsignedValuesBeyondTheImmediatePayloadIntoConstant
     ModuleCompileContext context(program, parameters, "", 1);
     const auto immediate = context.UInt(OperandIndexMask);
     const auto constant = context.UInt(OperandIndexMask + 1);
-    context.Emit(EOperationType::SetLiteral, EParticleAttribute::RibbonId, {constant});
+    context.Emit(EOperationType::SetLiteral, EParticleAttribute::GroupId, {constant});
     program.CompactConstants();
     EXPECT_EQ(immediate.Reference, Encoded(EOperandSource::Immediate, EOperandFormat::UInt, OperandIndexMask));
     EXPECT_EQ(GetOperandSource(Reference(program, 0, 0)), EOperandSource::Constant);
@@ -634,9 +634,9 @@ TEST(OperandValidationTest, UsesStoredFormatsForAttributesAndTemporaryRegisters)
             uint32_t(EParticleAttribute::Temp0))}, context));
     }
     EXPECT_TRUE(IsValidOperand({EOperandInput::UInt, Encoded(EOperandSource::ParticleAttribute, EOperandFormat::UInt,
-        uint32_t(EParticleAttribute::RibbonId))}, context));
+        uint32_t(EParticleAttribute::GroupId))}, context));
     EXPECT_FALSE(IsValidOperand({EOperandInput::UInt, Encoded(EOperandSource::ParticleAttribute, EOperandFormat::Float4,
-        uint32_t(EParticleAttribute::RibbonId))}, context));
+        uint32_t(EParticleAttribute::GroupId))}, context));
 }
 
 TEST(ModuleCompileTest, OperationFailureRemainsInvalidAfterAValidOperation)

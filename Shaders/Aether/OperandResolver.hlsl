@@ -106,8 +106,8 @@ struct SOperandResolver
             );
 
         if (source == OperandSource_ParticleAttribute)
-            return index == ParticleAttribute_RibbonId
-                ? CacheUInt(Attributes.RibbonId)
+            return index == ParticleAttribute_GroupId
+                ? CacheUInt(Attributes.GroupId)
                 : GetAttribute(Attributes, index);
 
         if (source == OperandSource_Immediate)
@@ -243,8 +243,8 @@ struct SOperandResolver
         if (source == OperandSource_Immediate)
             return index;
 
-        if (source == OperandSource_ParticleAttribute && index == ParticleAttribute_RibbonId)
-            return Attributes.RibbonId;
+        if (source == OperandSource_ParticleAttribute && index == ParticleAttribute_GroupId)
+            return Attributes.GroupId;
 
         return 0u;
     }

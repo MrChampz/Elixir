@@ -126,7 +126,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     particles[globalIndex].Age = 0.0;
     particles[globalIndex].Transform = float4(GetAttribute(attributes, ParticleAttribute_Rotation).x, GetAttribute(attributes, ParticleAttribute_Scale).x, 0.0, 0.0);
     particles[globalIndex].Tangent = GetAttribute(attributes, ParticleAttribute_Tangent).xyz;
-    particles[globalIndex].RibbonId = attributes.RibbonId;
+    particles[globalIndex].GroupId = attributes.GroupId;
     particles[globalIndex].Color = GetAttribute(attributes, ParticleAttribute_Color);
     particles[globalIndex].EmitterIndex = pc.EmitterIndex;
     particles[globalIndex].LinkOrder = emissionIndex;

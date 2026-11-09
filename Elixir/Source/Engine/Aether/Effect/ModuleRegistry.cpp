@@ -17,8 +17,8 @@
 #include <Engine/Aether/Modules/SetPositionDisk.h>
 #include <Engine/Aether/Modules/SetPositionOnCircle.h>
 #include <Engine/Aether/Modules/SetPositionVortexRibbonPath.h>
-#include <Engine/Aether/Modules/SetRibbonId.h>
-#include <Engine/Aether/Modules/SetRibbonIdFromSpawnOrder.h>
+#include <Engine/Aether/Modules/SetGroupId.h>
+#include <Engine/Aether/Modules/SetGroupIdFromSpawnOrder.h>
 #include <Engine/Aether/Modules/SetRotation.h>
 #include <Engine/Aether/Modules/SetScale.h>
 #include <Engine/Aether/Modules/SetSize.h>
@@ -82,8 +82,8 @@ namespace Elixir::Aether::Effect
     AETHER_REGISTER_MODULE(SetPositionDisk, Modules::SetPositionDisk::Create)
     AETHER_REGISTER_MODULE(SetPositionOnCircle, Modules::SetPositionOnCircle::Create)
     AETHER_REGISTER_MODULE(SetPositionVortexRibbonPath, Modules::SetPositionVortexRibbonPath::Create)
-    AETHER_REGISTER_MODULE(SetRibbonId, Modules::SetRibbonId::Create)
-    AETHER_REGISTER_MODULE(SetRibbonIdFromSpawnOrder, Modules::SetRibbonIdFromSpawnOrder::Create)
+    AETHER_REGISTER_MODULE(SetGroupId, Modules::SetGroupId::Create)
+    AETHER_REGISTER_MODULE(SetGroupIdFromSpawnOrder, Modules::SetGroupIdFromSpawnOrder::Create)
     AETHER_REGISTER_MODULE(SetRotation, Modules::SetRotation::Create)
     AETHER_REGISTER_MODULE(SetScale, Modules::SetScale::Create)
     AETHER_REGISTER_MODULE(SetSize, Modules::SetSize::Create)

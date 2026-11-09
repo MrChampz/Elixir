@@ -45,6 +45,10 @@ namespace
                 root / "Shaders/Aether/ParticleData.hlsl",
                 m_Path / "Shaders/Aether/ParticleData.hlsl"
             );
+            fs::copy_file(
+                root / "Shaders/Aether/Math.hlsl",
+                m_Path / "Shaders/Aether/Math.hlsl"
+            );
             fs::current_path(m_Path);
         }
         ~ShaderWorkspace()

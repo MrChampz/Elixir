@@ -13,7 +13,7 @@ namespace Elixir::Aether::Core
         Size,
         Lifetime,
         Tangent,
-        RibbonId,
+        GroupId,
         Temp0,
         Temp1,
         Temp2,

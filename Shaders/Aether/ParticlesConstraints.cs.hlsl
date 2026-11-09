@@ -40,7 +40,7 @@ bool Connected(uint firstSlot, uint secondSlot)
 
     return particles[a].Alive >= 0.5 && particles[b].Alive >= 0.5 &&
         particles[a].EmitterIndex == particles[b].EmitterIndex &&
-        particles[a].RibbonId == particles[b].RibbonId && order >= pc.OrderStep &&
+        particles[a].GroupId == particles[b].GroupId && order >= pc.OrderStep &&
         order - pc.OrderStep == particles[a].LinkOrder &&
         (order / pc.OrderStep) % pc.MaxPoints != 0;
 }
