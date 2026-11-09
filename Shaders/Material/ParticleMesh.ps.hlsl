@@ -2,6 +2,8 @@
 // Surface fields using planar UVs, time, material values and textures.
 
 #include "../Material/NormalSampling.hlsl"
+#include "../Material/TextureAtlas.hlsl"
+#include "../Material/SceneSampling.hlsl"
 #include "../Material/NormalTransforms.hlsl"
 
 [[vk::binding(0, 0)]]
@@ -48,6 +50,7 @@ struct PSInput
     float2 TexCoord : TEXCOORD0;
     float2 TexCoord1 : TEXCOORD1;
     float4 Color : COLOR;
+    float2 ParticleTime : TEXCOORD2;
 };
 
 static const float3 LIGHT_DIRECTION = float3(-0.45, 0.8, 0.55);
@@ -71,6 +74,9 @@ SamplerState pointWrap;
 
 [[vk::binding(10, 0)]]
 SamplerState pointClamp;
+
+[[vk::binding(11, 0)]] Texture2D sceneColorTexture;
+[[vk::binding(12, 0)]] SamplerState sceneColorSampler;
 
 float4 main(PSInput input) : SV_Target0
 {

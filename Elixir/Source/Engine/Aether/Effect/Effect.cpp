@@ -468,6 +468,45 @@ namespace Elixir::Aether::Effect
                 desc.Emissive = glm::vec3(emissive);
                 desc.BaseColorTexturePath = ParseString(material, "texture");
 
+                desc.EmissiveTexturePath = ParseString(material, "emissiveTexture");
+                desc.ColorRampTexturePath = ParseString(material, "colorRampTexture");
+                desc.NormalTexturePath = ParseString(material, "normalTexture");
+                desc.RefractionTexturePath = ParseString(material, "refractionTexture");
+                if (HasField(material, "emissiveScale"))
+                    desc.EmissiveScale = RequireFloat(material, "emissiveScale");
+                if (HasField(material, "ambientLight"))
+                    desc.AmbientLight = RequireFloat(material, "ambientLight");
+                if (HasField(material, "normalLightDirection"))
+                    desc.NormalLightDirection = RequireFloatVec<3>(
+                        material,
+                        "normalLightDirection"
+                    );
+                if (HasField(material, "refractionStrength"))
+                    desc.RefractionStrength = RequireFloat(material, "refractionStrength");
+                if (HasField(material, "atlas"))
+                {
+                    od::object atlas;
+                    if (material["atlas"].get_object().get(atlas))
+                    {
+                        Fail("Material atlas must be an object.");
+                        return std::nullopt;
+                    }
+                    desc.Atlas.Columns = RequireUInt(atlas, "columns");
+                    desc.Atlas.Rows = RequireUInt(atlas, "rows");
+                    desc.Atlas.Frames = RequireUInt(atlas, "frames");
+                    if (HasField(atlas, "interpolate"))
+                        desc.Atlas.Interpolate = RequireBoolean(atlas, "interpolate");
+                }
+                const float normalLength = glm::dot(
+                    desc.NormalLightDirection,
+                    desc.NormalLightDirection
+                );
+                if (!desc.Atlas.IsValid() || desc.EmissiveScale < 0 ||
+                    desc.AmbientLight < 0 || desc.AmbientLight > 1 ||
+                    !std::isfinite(normalLength) || normalLength <= 0.000001f ||
+                    desc.RefractionStrength < 0)
+                    Fail("Invalid material texture settings.");
+
                 if (HasField(material, "blendMode"))
                 {
                     const auto value = RequireString(material, "blendMode");
@@ -534,6 +573,16 @@ namespace Elixir::Aether::Effect
                     if (Failed()) return;
 
                     emitter.SetBurst(burstCount, burstInterval);
+                    if (HasField(burst, "delay"))
+                    {
+                        const auto delay = RequireFloat(burst, "delay");
+                        if (Failed()) return;
+                        if (!emitter.SetBurstDelay(delay))
+                        {
+                            Fail("'burst.delay' must be nonnegative and finite.");
+                            return;
+                        }
+                    }
                 }
 
                 if (HasField(json, "trigger"))

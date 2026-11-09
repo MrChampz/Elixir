@@ -40,6 +40,7 @@ struct VSOutput
     float2 TexCoord1 : TEXCOORD1;
     float3 ViewPos   : POSITION0;
     float4 Color     : COLOR;
+    float2 ParticleTime : TEXCOORD2;
 };
 
 float MaxAxisScale(float4x4 transform)
@@ -53,6 +54,7 @@ float MaxAxisScale(float4x4 transform)
 VSOutput main(VSInput input, uint vertexId : SV_VertexID)
 {
     VSOutput output;
+    output.ParticleTime = float2(input.VelocityAge.w, input.Metadata.z);
     const float2 normalizedPos = CalculateQuadPosition(vertexId % 6);
     const float size = input.PositionSize.w *
         max(input.Transform.y, 0.0f) *
@@ -61,12 +63,17 @@ VSOutput main(VSInput input, uint vertexId : SV_VertexID)
         pc.WorldTransform,
         float4(input.PositionSize.xyz, 1.0f)
     ).xyz;
+    float2 offset = (normalizedPos - 0.5f) * size;
+    float sine, cosine;
+    sincos(input.Transform.x, sine, cosine);
+    offset = float2(cosine * offset.x - sine * offset.y,
+        sine * offset.x + cosine * offset.y);
     const float3 viewPos = mul(View, float4(worldPosition, 1.0f)).xyz +
-        float3((normalizedPos - 0.5f) * size, 0.0f);
+        float3(offset, 0.0f);
 
     output.ClipPos = mul(Proj, float4(viewPos, 1.0f));
-    output.TexCoord = normalizedPos;
-    output.TexCoord1 = normalizedPos;
+    output.TexCoord = float2(normalizedPos.x, 1.0f - normalizedPos.y);
+    output.TexCoord1 = output.TexCoord;
     output.ViewPos = viewPos;
     output.Color = input.Color;
     return output;

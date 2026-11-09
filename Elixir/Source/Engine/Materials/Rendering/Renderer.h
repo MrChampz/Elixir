@@ -326,6 +326,12 @@ namespace Elixir::Materials::Rendering
             uint32_t MaterialIndex = UINT32_MAX;
         };
 
+        /**
+         * @brief Reports whether a draw samples a copy of its background.
+         * @param item Prepared draw and compiled material.
+         */
+        static bool RequiresSceneColor(const SPreparedRenderItem& item);
+
         /** Stores frame-table indices assigned to one render scene. */
         struct SPreparedRenderScene
         {

@@ -76,6 +76,7 @@ struct VSOutput
     float2 TexCoord  : TEXCOORD0;
     float2 TexCoord1 : TEXCOORD1;
     float4 Color     : COLOR;
+    float2 ParticleTime : TEXCOORD2;
 };
 
 float Hash01(uint x)
@@ -91,6 +92,7 @@ float Hash01(uint x)
 VSOutput main(VSInput input)
 {
     VSOutput output;
+    output.ParticleTime = float2(input.VelocityAge.w, input.Metadata.z);
 
     const uint id = asuint(input.Metadata.y);
     const float alive = input.Metadata.w >= 0.5 ? 1.0 : 0.0;

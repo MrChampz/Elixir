@@ -36,7 +36,7 @@ namespace Elixir::Aether::Simulation
             uint32_t    BurstCount{};
             uint32_t    IsTriggerDriven{};
             uint32_t    KillOnLifetimeExpired = 1;
-            uint32_t    Padding = 0;
+            float       BurstDelaySeconds = 0;
         };
 
         struct SGPUSystemInstance
@@ -158,6 +158,7 @@ namespace Elixir::Aether::Simulation
                 .BurstCount = emitter.BurstCount,
                 .IsTriggerDriven = emitter.IsTriggerDriven ? 1u : 0u,
                 .KillOnLifetimeExpired = emitter.KillOnLifetimeExpired ? 1u : 0u,
+                .BurstDelaySeconds = emitter.BurstDelaySeconds,
             };
         }
 
@@ -611,6 +612,7 @@ namespace Elixir::Aether::Simulation
             sizeof(schedulePushConstants)
         );
 
+        m_SchedulerInitEmittersShader->BindStorageBuffer("emitters", m_EmitterBuffer);
         m_SchedulerInitEmittersShader->BindStorageBuffer(
             "instances",
             m_SystemInstanceBuffer

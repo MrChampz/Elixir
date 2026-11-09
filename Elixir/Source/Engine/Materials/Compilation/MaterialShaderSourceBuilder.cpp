@@ -62,10 +62,18 @@ namespace Elixir::Materials::Compilation
         else
         {
             environment.Color = "input.Color";
+            if (stage == EShaderStage::Pixel)
+            {
+                environment.ParticleAge = "input.ParticleTime.x";
+                environment.ParticleLifetime = "input.ParticleTime.y";
+            }
         }
 
         if (stage == EShaderStage::Pixel)
         {
+            environment.ScreenPosition = "input.ClipPos.xy";
+            environment.SceneColorTexture = "sceneColorTexture";
+            environment.SceneColorSampler = "sceneColorSampler";
             environment.Normal = "N";
             environment.ViewDirection = "V";
         }

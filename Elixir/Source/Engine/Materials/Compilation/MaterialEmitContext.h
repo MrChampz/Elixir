@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Materials/MaterialNode.h>
+#include <Engine/Materials/TextureAtlas.h>
 
 namespace Elixir::Materials
 {
@@ -71,6 +72,29 @@ namespace Elixir::Materials::Compilation
 
         /** @brief Return the color supplied by the geometry renderer. */
         std::string Color() const;
+
+        /** @brief Returns particle age in seconds; unavailable for surface materials. */
+        std::string ParticleAge() const;
+        /** @brief Returns particle lifetime in seconds; unavailable for surface materials. */
+        std::string ParticleLifetime() const;
+        /**
+         * @brief Samples a row-major texture atlas at a zero-based fractional frame.
+         * @param name Material texture parameter.
+         * @param uv Coordinates within one atlas cell.
+         * @param frame Zero-based frame; clamped to the available range.
+         * @param atlas Validated layout and interpolation policy.
+         */
+        std::string SampleTextureAtlas(
+            const std::string& name,
+            const SMaterialExpression& uv,
+            const SMaterialExpression& frame,
+            const STextureAtlas& atlas
+        ) const;
+        /**
+         * @brief Samples the background at the fragment position plus an offset.
+         * @param offset Offset measured in normalized screen coordinates.
+         */
+        std::string SceneColor(const SMaterialExpression& offset) const;
 
         /** @brief Return the normal available at the graph evaluation point. */
         std::string Normal() const;

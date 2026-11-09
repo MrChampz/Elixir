@@ -1,3 +1,5 @@
+#include "../Material/TextureAtlas.hlsl"
+#include "../Material/SceneSampling.hlsl"
 // Template pixel shader for node-graph surface materials.
 //
 // The compiler replaces both markers below. The graph marker provides the
@@ -65,15 +67,11 @@ Texture2D prefilteredTexture : register(t3);
 [[vk::binding(3, 2)]]
 SamplerState environmentSampler : register(s1);
 
-#if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_TRANSMISSION
-
 [[vk::binding(4, 2)]]
 Texture2D sceneColorTexture;
 
 [[vk::binding(5, 2)]]
 SamplerState sceneColorSampler;
-
-#endif
 
 struct PushConstants
 {

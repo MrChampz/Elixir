@@ -634,20 +634,25 @@ bool VFXPanel::CompilePreview()
     const auto current = existing == m_LoadedSystems.end() ? nullptr : existing->second;
     for (const auto& emitter : replacement->GetEmitters())
     {
-        if (const auto& description = emitter->GetMaterialDescription(); description && !description->BaseColorTexturePath.empty())
+        if (const auto& description = emitter->GetMaterialDescription(); description)
         {
             auto adjusted = *description;
-            const std::filesystem::path texture(adjusted.BaseColorTexturePath);
-            if (texture.is_relative()) adjusted.BaseColorTexturePath = (m_ProjectRoot / texture).lexically_normal().string();
+            for (auto* path : {&adjusted.BaseColorTexturePath, &adjusted.EmissiveTexturePath,
+                &adjusted.ColorRampTexturePath, &adjusted.NormalTexturePath,
+                &adjusted.RefractionTexturePath})
+            {
+                const std::filesystem::path texture(*path);
+                if (!path->empty() && texture.is_relative())
+                    *path = (m_ProjectRoot / texture).lexically_normal().string();
+            }
             emitter->SetMaterialDescription(std::move(adjusted));
         }
         if (current)
             if (const auto old = current->FindEmitter(emitter->GetName()); old && old->GetRenderMode() == emitter->GetRenderMode())
             {
                 const auto& previous = old->GetMaterialDescription(); const auto& next = emitter->GetMaterialDescription();
-                const bool unchanged = (!previous && !next) || (previous && next && previous->BaseColor == next->BaseColor &&
-                    previous->BlendMode == next->BlendMode &&
-                    previous->Opacity == next->Opacity && previous->Emissive == next->Emissive && previous->BaseColorTexturePath == next->BaseColorTexturePath);
+                const bool unchanged = (!previous && !next) ||
+                    (previous && next && *previous == *next);
                 if (unchanged) emitter->SetMaterial(old->GetMaterial());
             }
     }

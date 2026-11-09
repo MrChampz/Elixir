@@ -13,6 +13,12 @@
 #include <Engine/Materials/Nodes/TextureSample.h>
 #include <Engine/Materials/Nodes/TexCoord.h>
 
+#include <Engine/Aether/Manager.h>
+#include <Engine/Aether/Effect/MaterialFactory.h>
+#include <Engine/Graphics/TextureLoader.h>
+#include <Engine/Materials/Nodes/FlipbookSample.h>
+#include <Engine/Materials/Nodes/ParticleTime.h>
+#include <Engine/Materials/Nodes/SceneColor.h>
 using namespace Elixir::Materials;
 using namespace Elixir::Materials::Nodes;
 using namespace Elixir::Materials::Compilation;
@@ -196,4 +202,83 @@ TEST(VulkanMaterialGraphTest, CompilesFunctionsStaticChoicesAndVertexTextureSamp
             }
         }
     ));
+}
+
+
+TEST(VulkanMaterialGraphTest, CompilesMigratedParticleEffectsForEveryGeometry)
+{
+    auto* context = VulkanTestContext::Get().GetGraphicsContext();
+    ASSERT_TRUE(context->RunRenderTaskAndWait([&]
+    {
+        const auto root = std::filesystem::path(__FILE__).parent_path().parent_path()
+            .parent_path().parent_path().parent_path();
+        ShaderWorkspace workspace;
+        TextureLoader::Initialize(context);
+        ShaderLoader loader(context);
+        for (const auto* name : {"BlendModeTest", "FlipbookSmokeTest", "GradientTest",
+            "NormalLightTest", "DistortionTest", "NS_Explosion_01", "N_RealExp_00_A",
+            "CinematicFX_Showcase"})
+        {
+            const auto system = Aether::Manager::LoadEffect(
+                root / "Assets/VFX" / (std::string(name) + ".json")
+            );
+            ASSERT_TRUE(system) << name;
+            for (const auto& emitter : system->GetEmitters())
+            {
+                ASSERT_TRUE(emitter->GetMaterialDescription()) << emitter->GetName();
+                auto description = *emitter->GetMaterialDescription();
+                for (auto* path : {&description.BaseColorTexturePath,
+                    &description.EmissiveTexturePath, &description.ColorRampTexturePath,
+                    &description.NormalTexturePath, &description.RefractionTexturePath})
+                {
+                    if (path->empty()) continue;
+                    *path = (root / *path).string();
+                    ASSERT_TRUE(std::filesystem::exists(*path)) << *path;
+                }
+                const auto material = Aether::Effect::CreateMaterial(
+                    emitter->GetName(),
+                    description
+                );
+                ASSERT_TRUE(material);
+                const auto result = Compiler::Compile(&loader, *material);
+                ASSERT_TRUE(result) << name << ": " << emitter->GetName() << " "
+                    << result.Diagnostics;
+                for (const auto& shader : {result.Material->ParticleSpriteShader,
+                    result.Material->ParticleMeshShader, result.Material->ParticleRibbonShader,
+                    result.Material->ParticleStrandShader})
+                {
+                    ASSERT_TRUE(shader);
+                    EXPECT_EQ(shader->HasBinding("sceneColorTexture"),
+                        !description.RefractionTexturePath.empty());
+                }
+            }
+        }
+    }));
+}
+
+TEST(VulkanMaterialGraphTest, AtlasAndSceneSamplingAlsoCompileForSurfaceMaterials)
+{
+    auto* context = VulkanTestContext::Get().GetGraphicsContext();
+    ASSERT_TRUE(context->RunRenderTaskAndWait([&]
+    {
+        ShaderWorkspace workspace;
+        ShaderLoader loader(context);
+        Material material("Generic atlas and scene", EMaterialUsage::Surface);
+        material.DefineParameter("Atlas", {
+            .Kind = EMaterialParameterKind::Texture,
+            .DefaultValue = SMaterialParameter::MakeTexture(nullptr)
+        });
+        MaterialGraph graph;
+        const auto atlas = graph.AddNode<FlipbookSample>(
+            "Atlas",
+            STextureAtlas{2, 2, 4, true}
+        );
+        const auto scene = graph.AddNode<SceneColor>();
+        graph.SetChannel(EMaterialChannel::BaseColor, atlas);
+        graph.SetChannel(EMaterialChannel::Emissive, scene);
+        material.SetGraph(std::move(graph));
+        const auto result = Compiler::Compile(&loader, material);
+        ASSERT_TRUE(result) << result.Diagnostics;
+        EXPECT_TRUE(result.Material->SurfaceShader->HasBinding("sceneColorTexture"));
+    }));
 }

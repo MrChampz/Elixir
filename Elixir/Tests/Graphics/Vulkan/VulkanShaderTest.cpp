@@ -32,6 +32,9 @@
 
 
 
+#include <Engine/Graphics/Texture.h>
+#include <Engine/Graphics/Sampler.h>
+#include <Engine/Graphics/TextureLoader.h>
 using namespace Elixir;
 using namespace Elixir::Vulkan;
 
@@ -298,6 +301,45 @@ TEST(VulkanShaderTest, InitialBurstRunsOnceAndPeriodicAndTriggeredBurstsKeepThei
     dispatch(0);
     EXPECT_EQ(request[1], 64u); // reset starts a new initial burst
     EXPECT_EQ(request[3], 2u);
+
+    // Reset reads the delay from the last word of the unchanged 64-byte GPU layout.
+    const auto init = loader.LoadShader(
+        "./Shaders/Aether",
+        "ParticlesSchedulerInitEmitters",
+        EShaderStage::Compute
+    );
+    ASSERT_TRUE(init);
+    const auto initPipeline = ComputePipeline::Create(context, {.Shader = init});
+    init->SetPushConstant("pc", &index, sizeof(index));
+    init->BindStorageBuffer("emitters", emitters);
+    init->BindStorageBuffer("instances", instances);
+    init->BindStorageBuffer("emitterStates", states);
+    init->BindStorageBuffer("schedulerStates", schedulers);
+    init->BindStorageBuffer("triggerQueueStates", queueBuffer);
+    emitter[15] = std::bit_cast<uint32_t>(0.5f);
+    emitters->UpdateData(emitter.data(), sizeof(emitter));
+    scheduler[2] = 1;
+    schedulers->UpdateData(scheduler.data(), sizeof(scheduler));
+    const auto reset = context->GetUploadCommandBuffer();
+    reset->Begin();
+    states->Barrier(
+        reset,
+        EPipelineStage::ComputeShader,
+        EPipelineAccess::ShaderRead | EPipelineAccess::ShaderWrite
+    );
+    initPipeline->Bind(reset);
+    reset->Dispatch(1);
+    reset->End();
+    reset->Flush();
+    scheduler[2] = 0;
+    schedulers->UpdateData(scheduler.data(), sizeof(scheduler));
+    // Delay counts down without consuming or repeating a one-shot burst.
+    dispatch(0.25f);
+    EXPECT_EQ(request[1], 0u);
+    dispatch(0.25f);
+    EXPECT_EQ(request[1], 64u);
+    dispatch(1.0f);
+    EXPECT_EQ(request[1], 0u);
 
     // A positive interval still waits for the interval and repeats.
     state = {};
@@ -709,4 +751,124 @@ TEST(VulkanShaderTest, StrandRendererUsesDefaultsWithoutAuthoredRenderConfig)
     context->WaitDeviceIdle();
     EXPECT_EQ(result.DrawCount, 1u);
     EXPECT_TRUE(manager.Remove(instance));
+}
+
+
+TEST(VulkanShaderTest, AtlasSamplingClampsCellsAndInterpolatesWithoutBleeding)
+{
+    const auto context = VulkanTestContext::Get().GetGraphicsContext();
+    ShaderLoader loader(context);
+    const auto shader = loader.LoadShader(
+        ELIXIR_TEST_SHADER_DIR,
+        "TextureAtlasValidation",
+        EShaderStage::Compute
+    );
+    ASSERT_TRUE(shader);
+    const std::array<uint8_t, 16> pixels{
+        255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255
+    };
+    STexture2DCreateInfo info;
+    info.Format = EImageFormat::R8G8B8A8_UNORM;
+    info.Width = info.Height = 2;
+    info.InitialData = pixels.data();
+    const auto texture = Texture2D::Create(context, info);
+    const auto sampler = Sampler::Create(context, {
+        .MagFilter = ESamplerFilter::Linear,
+        .MinFilter = ESamplerFilter::Linear,
+        .AddressModeU = ESamplerAddressMode::ClampToEdge,
+        .AddressModeV = ESamplerAddressMode::ClampToEdge
+    });
+    std::array<glm::vec4, 8> values{};
+    const auto output = DynamicStorageBuffer::Create(context, sizeof(values), values.data());
+    shader->BindImage("atlas", texture->GetImage());
+    shader->BindSampler("linearClamp", sampler);
+    shader->BindStorageBuffer("results", output);
+    const auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
+    const auto cmd = context->GetUploadCommandBuffer();
+    cmd->Begin();
+    pipeline->Bind(cmd);
+    cmd->Dispatch(1);
+    const VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
+        VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT};
+    vkCmdPipelineBarrier(
+        static_cast<VulkanCommandBuffer*>(cmd.get())->GetVulkanCommandBuffer(),
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_HOST_BIT,
+        0,
+        1,
+        &barrier,
+        0,
+        nullptr,
+        0,
+        nullptr
+    );
+    cmd->End();
+    cmd->Flush();
+    std::memcpy(values.data(), output->Map(), sizeof(values));
+    output->Unmap();
+    const std::array<glm::vec4, 8> expected{
+        glm::vec4{1, 0, 0, 1}, glm::vec4{0, 1, 0, 1}, glm::vec4{0, 0, 1, 1},
+        glm::vec4{1, 1, 1, 1}, glm::vec4{0.5f, 0.5f, 0, 1}, glm::vec4{1, 0, 0, 1},
+        glm::vec4{0, 0, 1, 1}, glm::vec4{1, 0, 0, 1}
+    };
+    for (size_t sample = 0; sample < values.size(); ++sample)
+        for (uint32_t component = 0; component < 4; ++component)
+            EXPECT_NEAR(values[sample][component], expected[sample][component], 0.001f)
+                << "sample " << sample;
+}
+
+
+TEST(VulkanShaderTest, MigratedEffectsRenderAdditiveAndRefractiveMaterialsThroughAether)
+{
+    const auto context = VulkanTestContext::Get().GetGraphicsContext();
+    ShaderLoader loader(context);
+    TextureLoader::Initialize(context);
+    const auto root = std::filesystem::path(__FILE__).parent_path().parent_path()
+        .parent_path().parent_path().parent_path();
+    for (const auto* name : {"DistortionTest", "NS_Explosion_01", "CinematicFX_Showcase"})
+    {
+        Materials::MaterialRegistry registry;
+        Materials::MaterialSystem materials(
+            context,
+            {},
+            &loader,
+            context->GetRenderTarget(),
+            context->GetDepthStencilRenderTarget()
+        );
+        Aether::Manager manager(context, &loader, registry, materials);
+        const auto system = Aether::Manager::LoadEffect(
+            root / "Assets/VFX" / (std::string(name) + ".json")
+        );
+        ASSERT_TRUE(system) << name;
+        for (const auto& emitter : system->GetEmitters())
+        {
+            auto description = *emitter->GetMaterialDescription();
+            for (auto* path : {&description.BaseColorTexturePath,
+                &description.EmissiveTexturePath, &description.ColorRampTexturePath,
+                &description.NormalTexturePath, &description.RefractionTexturePath})
+                if (!path->empty()) *path = (root / *path).string();
+            emitter->SetMaterialDescription(description);
+        }
+        const auto instance = system->CreateInstance();
+        ASSERT_TRUE(manager.Add(instance));
+        PerspectiveCamera camera(45, 16.0f / 9, 0.01f, 100);
+        camera.SetPosition({0, 0, 4});
+        Materials::Rendering::SRenderResult result;
+        // Run beyond the authored three-second burst intervals.
+        for (int frame = 0; frame < 100; ++frame)
+        {
+            context->RenderFrame([&]
+            {
+                materials.BeginFrame();
+                manager.BeginFrame(Timestep(1.0f / 30));
+                manager.Render(camera, context->GetRenderTarget());
+                result = materials.RenderFrame();
+            });
+            ASSERT_TRUE(context->RunRenderTaskAndWait([] {}));
+        }
+        context->WaitDeviceIdle();
+        EXPECT_EQ(result.DrawCount, system->GetEmitters().size()) << name;
+        EXPECT_EQ(result.MaterialCount, system->GetEmitters().size()) << name;
+        EXPECT_TRUE(manager.Remove(instance));
+    }
 }

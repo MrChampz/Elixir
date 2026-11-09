@@ -61,6 +61,9 @@ namespace Elixir::Materials
 
         /** Blends fragments with the color already in the target. */
         Translucent,
+
+        /** Adds alpha-weighted color to the target without replacing its background. */
+        Additive,
     };
 
     /** @brief Defines the numeric value type used by a material. */

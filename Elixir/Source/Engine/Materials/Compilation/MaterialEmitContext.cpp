@@ -160,6 +160,44 @@ namespace Elixir::Materials::Compilation
         return Require(m_Environment.Color, "color");
     }
 
+    std::string MaterialEmitContext::ParticleAge() const
+    {
+        return Require(m_Environment.ParticleAge, "particle age");
+    }
+
+    std::string MaterialEmitContext::ParticleLifetime() const
+    {
+        return Require(m_Environment.ParticleLifetime, "particle lifetime");
+    }
+
+    std::string MaterialEmitContext::SampleTextureAtlas(
+        const std::string& name,
+        const SMaterialExpression& uv,
+        const SMaterialExpression& frame,
+        const STextureAtlas& atlas
+    ) const
+    {
+        const auto textures = Require(m_Environment.TextureArray, "texture array");
+        const auto sampler = Require(m_Environment.TextureSamplers[1], "clamp sampler");
+        const auto index = TextureParameter(name);
+        return "(" + index + " == 0xFFFFFFFFu ? float4(1,1,1,1) : SampleTextureAtlas(" +
+            textures + "[" + index + "], " + sampler + ", " +
+            Widen(uv, EMaterialValueType::Float2) + ", " +
+            Widen(frame, EMaterialValueType::Float) + ", uint2(" +
+            std::to_string(atlas.Columns) + ", " + std::to_string(atlas.Rows) + "), " +
+            std::to_string(atlas.Frames) + "u, " +
+            (atlas.Interpolate ? "true" : "false") + "))";
+    }
+
+    std::string MaterialEmitContext::SceneColor(const SMaterialExpression& offset) const
+    {
+        const auto image = Require(m_Environment.SceneColorTexture, "scene color");
+        const auto sampler = Require(m_Environment.SceneColorSampler, "scene color sampler");
+        const auto position = Require(m_Environment.ScreenPosition, "screen position");
+        return "SampleMaterialSceneColor(" + image + ", " + sampler + ", " + position +
+            ", " + Widen(offset, EMaterialValueType::Float2) + ")";
+    }
+
     std::string MaterialEmitContext::Normal() const
     {
         return Require(m_Environment.Normal, "normal");

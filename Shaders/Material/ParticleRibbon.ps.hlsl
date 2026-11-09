@@ -2,6 +2,8 @@
 // Surface fields using UV, material values and textures.
 
 #include "../Material/NormalSampling.hlsl"
+#include "../Material/TextureAtlas.hlsl"
+#include "../Material/SceneSampling.hlsl"
 
 [[vk::binding(0, 0)]]
 cbuffer cbFrame : register(b0)
@@ -49,6 +51,7 @@ struct PSInput
     float2 TexCoord1            : TEXCOORD2;
     float3 WorldPos             : POSITION0;
     float4 Color                : COLOR;
+    float2 ParticleTime : TEXCOORD3;
 };
 
 struct Surface
@@ -69,6 +72,9 @@ SamplerState pointWrap;
 
 [[vk::binding(10, 0)]]
 SamplerState pointClamp;
+
+[[vk::binding(11, 0)]] Texture2D sceneColorTexture;
+[[vk::binding(12, 0)]] SamplerState sceneColorSampler;
 
 float4 main(PSInput input) : SV_Target0
 {
