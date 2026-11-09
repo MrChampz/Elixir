@@ -3,6 +3,7 @@
 #include "UI/Panels/ContentBrowserPanel.h"
 
 #include "UI/Panels/ViewportPanel.h"
+#include "UI/Panels/AnimationGraphPanel.h"
 #include "UI/Panels/VFXPanel.h"
 #include "UI/Panels/MeshPanel.h"
 #include "UI/Panels/StrandsPanel.h"
@@ -45,6 +46,8 @@ Editor::Editor(std::filesystem::path asset, bool openStrands)
     m_GraphicsContext->SetClearColor({ 0.015f, 0.025f, 0.06f, 1.0f });
     LoadDefaultScene();
     LoadStrandScene();
+    m_EditorUI->AddTab("Animation Graph", false);
+    m_EditorUI->AddPanel(CreateScope<AnimationGraphPanel>(), 2);
     if (openStrands && m_StrandScene.Panel) m_EditorUI->ActivateTab(1);
     if (!asset.empty()) m_OpenRequests.push_back(std::move(asset));
 }
@@ -170,11 +173,7 @@ void Editor::OpenMeshAsset(const std::filesystem::path& asset)
 
 bool Editor::IsSceneActive() const
 {
-    return (!m_StrandScene.Panel || !m_StrandScene.Panel->IsActive()) &&
-        std::none_of(m_Documents.begin(), m_Documents.end(),
-        [](const auto& document) { return document.Panel->IsActive(); }) &&
-        std::none_of(m_MeshDocuments.begin(), m_MeshDocuments.end(),
-        [](const auto& document) { return document.Panel->IsActive(); });
+    return m_EditorUI->GetActiveTabIndex() == 0;
 }
 
 void Editor::OpenVFXAsset(const std::filesystem::path& asset)

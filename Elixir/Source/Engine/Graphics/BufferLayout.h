@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Engine/Core/Core.h>
+
 namespace Elixir
 {
     /** @brief Identifies the numeric type of a buffer attribute. */
@@ -17,7 +19,7 @@ namespace Elixir
         Vertex, Instance
     };
 
-    class BufferAttribute
+    class ELIXIR_API BufferAttribute
     {
         friend class BufferBinding;
       public:
@@ -39,7 +41,7 @@ namespace Elixir
         bool m_Normalized;
     };
 
-    class BufferBinding
+    class ELIXIR_API BufferBinding
     {
         friend class BufferLayout;
       public:
@@ -68,7 +70,7 @@ namespace Elixir
         std::vector<BufferAttribute> m_Attributes;
     };
 
-    class BufferLayout
+    class ELIXIR_API BufferLayout
     {
       public:
         BufferLayout() = default;

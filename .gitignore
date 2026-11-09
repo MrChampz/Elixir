@@ -9,6 +9,8 @@ Bin/
 Intermediate/
 out/
 vcpkg_installed/
+Debug/
+Release/
 
 # Files
 *.user

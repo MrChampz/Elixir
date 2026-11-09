@@ -42,6 +42,11 @@ public:
     void CloseDocument(int index);
     /** @brief Activates a document tab or the main Scene tab. */
     void ActivateTab(int index);
+    /**
+     * @brief Returns the index of the selected editor tab.
+     * @return Zero for Scene, or the index assigned when another tab was added.
+     */
+    int GetActiveTabIndex() const { return m_ActiveTabIndex; }
     /** @brief Updates the document label and unsaved marker. */
     void SetTabTitle(int index, const std::string& title);
 

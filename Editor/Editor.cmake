@@ -88,3 +88,31 @@ if (BUILD_TESTING)
     include(GoogleTest)
     gtest_discover_tests(Editor.UnitTests)
 endif()
+
+if(BUILD_TESTING)
+    add_executable(Editor.AnimationTests
+        "${CMAKE_CURRENT_LIST_DIR}/Tests/AnimationGraphDocumentTest.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Source/Animation/AnimationGraphDocument.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Source/Animation/AnimationGraphLibrary.cpp"
+    )
+    set_target_properties(Editor.AnimationTests PROPERTIES
+        CXX_STANDARD 20
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO
+        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
+    )
+    target_compile_definitions(Editor.AnimationTests PRIVATE
+        $<$<BOOL:${ELIXIR_PROFILE}>:EE_PROFILE>
+        $<$<CONFIG:Debug>:EE_DEBUG>
+        $<$<BOOL:${WIN32}>:EE_PLATFORM_WINDOWS>
+        $<$<BOOL:${APPLE}>:EE_PLATFORM_MACOS>
+    )
+    target_include_directories(Editor.AnimationTests PRIVATE
+        "${CMAKE_SOURCE_DIR}/Elixir/Source"
+        "${CMAKE_CURRENT_LIST_DIR}/Source"
+    )
+    link_target_to_engine(Editor.AnimationTests)
+    target_link_libraries(Editor.AnimationTests PRIVATE GTest::gtest_main)
+    include(GoogleTest)
+    gtest_discover_tests(Editor.AnimationTests)
+endif()
