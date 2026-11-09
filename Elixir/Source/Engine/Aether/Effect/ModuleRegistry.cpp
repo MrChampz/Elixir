@@ -4,6 +4,7 @@
 #include <Engine/Aether/Modules/ApplyAngularVelocity.h>
 #include <Engine/Aether/Modules/ApplyGravity.h>
 #include <Engine/Aether/Modules/DistanceConstraint.h>
+#include <Engine/Aether/Modules/StrandGrowth.h>
 #include <Engine/Aether/Modules/CurlNoiseForce.h>
 #include <Engine/Aether/Modules/ApplyLinearDrag.h>
 #include <Engine/Aether/Modules/ApplyVortex.h>
@@ -70,6 +71,7 @@ namespace Elixir::Aether::Effect
     AETHER_REGISTER_MODULE(CurlNoiseForce, Modules::CurlNoiseForce::Create)
     AETHER_REGISTER_MODULE(ApplyGravity, Modules::ApplyGravity::Create)
     AETHER_REGISTER_MODULE(DistanceConstraint, Modules::DistanceConstraint::Create)
+    AETHER_REGISTER_MODULE(StrandGrowth, Modules::StrandGrowth::Create)
     AETHER_REGISTER_MODULE(ApplyLinearDrag, Modules::ApplyLinearDrag::Create)
     AETHER_REGISTER_MODULE(ApplyVortex, Modules::ApplyVortex::Create)
     AETHER_REGISTER_MODULE(ColorOverLife, Modules::ColorOverLife::Create)

@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <cmath>
 #include <format>
+#include <fstream>
+#include <iterator>
 
 namespace
 {
@@ -34,8 +36,16 @@ namespace
     private:
         Ref<Image> m_Image;
     };
-    constexpr std::array SampleFiles{"StrandPlayground.json", "StrandCables.json", "StrandSeaweed.json", "StrandEnergy.json"};
-    constexpr std::array SampleLabels{"Tentacles", "Cables", "Seaweed", "Energy"};
+    constexpr std::array SampleFiles{
+        "StrandPlayground.json", "StrandCables.json", "StrandSeaweed.json",
+        "StrandEnergy.json",
+        "StrandIvy.json", "StrandClimbingIvy.json", "StrandFern.json", "StrandWillow.json",
+        "StrandPowerLines.json", "StrandBalloons.json"
+    };
+    constexpr std::array SampleLabels{
+        "Tentacles", "Cables", "Seaweed", "Energy", "Ivy", "Climbing Ivy", "Fern", "Willow",
+        "Power Lines", "Balloons"
+    };
     constexpr std::array MoveCodes{EE_KEY_W, EE_KEY_A, EE_KEY_S, EE_KEY_D};
 
     Ref<GUI::TextBlock> Label(const std::string& text)
@@ -47,7 +57,11 @@ namespace
     }
 }
 
-StrandsPanel::StrandsPanel(Aether::Manager& manager, GraphicsContext& context, const std::filesystem::path& effect)
+StrandsPanel::StrandsPanel(
+    EditorVFXManager& manager,
+    GraphicsContext& context,
+    const std::filesystem::path& effect
+)
     : m_Manager(manager), m_Context(context)
 {
     m_EffectDirectory = effect.parent_path();
@@ -59,15 +73,34 @@ bool StrandsPanel::LoadSample(int index)
 {
     if (index < 0 || index >= int(SampleFiles.size())) return false;
     const auto path = m_EffectDirectory / SampleFiles[index];
+    EditorVFX::Document document;
+    std::vector<std::optional<EditorVFX::LeafSettings>> leaves;
+    std::vector<std::optional<EditorVFX::BalloonSettings>> balloons;
+    std::string error;
+    if (!document.Load(path, error) ||
+        !EditorVFX::ParseLeafRenderers(document.Root(), leaves, error) ||
+        !EditorVFX::ParseBalloonRenderers(document.Root(), balloons, error))
+    {
+        m_LoadError = "Could not load sample renderers: " + error;
+        return false;
+    }
     const auto system = Aether::Manager::LoadEffect(path);
     auto instance = system ? system->CreateInstance() : nullptr;
     if (instance) instance->SetWorldTransform(glm::translate(glm::mat4(1), m_Position));
     bool added = false;
-    if (instance && m_Context.RunRenderTaskAndWait([&]
-    {
-        added = m_Manager.Add(instance);
-        if (added && m_Instance) m_Manager.Remove(m_Instance);
-    }) && added)
+    const bool completed = instance && m_Context.RunRenderTaskAndWait(
+        [&]
+        {
+            added = m_Manager.Add(instance);
+            if (added)
+            {
+                if (m_Instance) m_Manager.Remove(m_Instance);
+                m_Manager.SetLeafRenderers(std::move(leaves));
+                m_Manager.SetBalloonRenderers(std::move(balloons));
+            }
+        }
+    );
+    if (completed && added)
     {
         m_Instance = std::move(instance);
         m_SampleIndex = index;
@@ -104,6 +137,18 @@ Ref<GUI::Widget> StrandsPanel::Build()
     reset->OnClick([this] { m_ResetRequested = true; });
     controls->AddChild(reset).SetVerticalAlignment(GUI::EVerticalAlignment::Center);
     toolbar->AddChild(controls).SetFixedSize(28).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
+    auto pause = CreateRef<GUI::Button>();
+    pause->SetStyle(style.PanelHeaderButton);
+    pause->SetContent(Label("Pause/resume growth"));
+    pause->OnClick([this]
+    {
+        m_GrowthPaused = !m_GrowthPaused;
+        m_Context.RunRenderTaskAndWait([this]
+        {
+            m_Manager.SetStrandGrowthPaused(m_GrowthPaused);
+        });
+    });
+    controls->AddChild(pause).SetMargin({6, 0});
     auto samples = CreateRef<GUI::HorizontalBox>();
     for (int index = 0; index < int(SampleLabels.size()); ++index)
     {
@@ -115,7 +160,7 @@ Ref<GUI::Widget> StrandsPanel::Build()
         samples->AddChild(button).SetMargin({0, 2, 6, 0});
     }
     toolbar->AddChild(samples).SetFixedSize(30).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
-    root->AddChild(toolbar).SetPosition({10, 10}).SetSize({530, 66});
+    root->AddChild(toolbar).SetPosition({10, 10}).SetSize({1050, 66});
     m_Toolbar = toolbar;
     RegisterOverlay(toolbar);
     m_Status = Label(m_Instance ? "" : "Could not load strand effect. See the log.");
@@ -162,6 +207,7 @@ void StrandsPanel::OnUpdate(Timestep frameTime)
     const auto previous = m_Position;
     m_Position.x = std::clamp(m_Position.x + direction.x * step, -1.25f, 1.25f);
     m_Position.y = std::clamp(m_Position.y + direction.y * step, -0.95f, 0.95f);
+    if (m_SampleIndex == 8) m_Position = {};
     if (previous != m_Position) m_Instance->SetWorldTransform(glm::translate(glm::mat4(1), m_Position));
     const auto status = m_LoadError.empty() ? std::format(
         "{}   |   {} particles   |   Origin: ({:.2f}, {:.2f})",

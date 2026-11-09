@@ -31,6 +31,7 @@ namespace Elixir
         {
             class Simulator;
             struct SSimulationMetrics;
+            class RenderFrame;
         }
 
         namespace Rendering
@@ -190,7 +191,26 @@ namespace Elixir::Aether
          */
         const SRenderingMetrics& GetLastRenderingMetrics() const;
 
+        /**
+         * @brief Pauses development while leaving particle physics active.
+         * @param paused Whether development clocks should stop on the render-frame thread.
+         */
+        void SetStrandGrowthPaused(bool paused);
+
     protected:
+        /**
+         * @brief Exposes the final immutable simulation frame to application renderers.
+         * @param frame Final frame retaining particle buffers and draw metadata.
+         * @param camera Camera used for particle geometry.
+         * @param sceneTarget Application color target receiving the frame.
+         * @pre Called and consumed on the render-frame thread.
+         */
+        virtual void OnRenderFrame(
+            const Ref<const Simulation::RenderFrame>& frame,
+            const Camera& camera,
+            const Ref<Image>& sceneTarget
+        );
+
         /**
          * @brief Simulates ordered steps and renders only their final result.
          * @param camera Camera used to prepare the final particle rendering.

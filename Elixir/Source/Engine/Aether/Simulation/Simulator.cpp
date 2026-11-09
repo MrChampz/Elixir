@@ -1,5 +1,6 @@
 #include "epch.h"
 #include "Simulator.h"
+#include "ConstraintData.h"
 
 #include <Engine/Core/Timer.h>
 #include <Engine/Aether/Core/Operation.h>
@@ -244,6 +245,8 @@ namespace Elixir::Aether::Simulation
         if (!cmd ||
             !m_ConstantBuffer ||
             !m_ParameterBuffer ||
+            !m_ConstraintConstants ||
+            !m_ConstraintConstants->IsValid() ||
             steps.empty())
             return nullptr;
 
@@ -586,6 +589,11 @@ namespace Elixir::Aether::Simulation
             sizeof(SParamsData)
         );
 
+        m_ConstraintConstants = UniformBuffer::Create(
+            m_GraphicsContext,
+            sizeof(SConstraintFrameData)
+        );
+
         m_EmitterStateBuffer->Clear();
         m_SpawnRequestBuffer->Clear();
         m_TriggerQueueStateBuffer->Clear();
@@ -700,6 +708,10 @@ namespace Elixir::Aether::Simulation
 
         if (runtime.ConstraintShader)
         {
+            runtime.ConstraintShader->BindConstantBuffer(
+                "cbConstraint",
+                m_ConstraintConstants
+            );
             constexpr SConstraintPushConstants constraintConstants{};
             runtime.ConstraintShader->SetPushConstant(
                 "pc",
@@ -1062,6 +1074,8 @@ namespace Elixir::Aether::Simulation
                     .ParticleCount = emitter.MaxParticles,
                     .RenderConfig = emitter.RenderConfig,
                 };
+                if (emitter.ConstraintCount == 1)
+                    item.Constraint = system.ModuleData.Constraints[emitter.ConstraintOffset];
                 items.push_back(std::move(item));
             }
         }
@@ -1231,6 +1245,42 @@ namespace Elixir::Aether::Simulation
                     for (uint32_t index = 0; index < emitter.ConstraintCount; ++index)
                     {
                         const auto& config = constraints[emitter.ConstraintOffset + index];
+                        auto data = BuildConstraintFrameData(
+                            config,
+                            GetParticleRenderTransform(emitter, *instance->Proxy)
+                        );
+                        if (!data)
+                        {
+                            EE_CORE_ERROR("Cannot simulate chains with invalid transforms.");
+                            continue;
+                        }
+                        if (m_StrandGrowthPaused && data->Topology.w == 0)
+                            data->Topology.w = uint32_t(EStrandGrowthState::Paused);
+                        const auto upload = StagingBuffer::Create(
+                            m_GraphicsContext,
+                            sizeof(*data),
+                            &*data
+                        );
+                        if (!upload || !upload->IsValid())
+                        {
+                            EE_CORE_ERROR("Could not upload chain constraint constants.");
+                            continue;
+                        }
+                        auto& uploads = m_ParameterUploads[m_GraphicsContext->GetFrameIndex()];
+                        uploads.push_back(upload);
+                        // Keep the descriptor fixed. Ordered copies give every dispatch its
+                        // own values without updating a descriptor already recorded by Vulkan.
+                        m_ConstraintConstants->Barrier(
+                            cmd,
+                            EPipelineStage::Transfer,
+                            EPipelineAccess::TransferWrite
+                        );
+                        cmd->CopyBuffer(upload, m_ConstraintConstants);
+                        m_ConstraintConstants->Barrier(
+                            cmd,
+                            EPipelineStage::ComputeShader,
+                            EPipelineAccess::UniformRead
+                        );
                         const SConstraintPushConstants pc{
                             .ParticleOffset = instance->Allocation.Particles.Offset +
                                 emitter.LocalParticleOffset,

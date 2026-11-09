@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../EditorPanel.h"
-#include <Engine/Aether/Manager.h>
+#include "../../VFX/EditorVFXManager.h"
 #include <Engine/Camera/ArcBallCameraController.h>
 #include <array>
 
@@ -9,8 +9,17 @@
 class StrandsPanel final : public EditorPanel
 {
 public:
-    /** Creates one persistent instance. The manager and context must outlive the panel. */
-    StrandsPanel(Aether::Manager& manager, GraphicsContext& context, const std::filesystem::path& effect);
+    /**
+     * @brief Creates one persistent sample instance.
+     * @param manager Preview services that outlive the panel.
+     * @param context Graphics context that outlives the panel.
+     * @param effect Initial asset path used to find the sample directory.
+     */
+    StrandsPanel(
+        EditorVFXManager& manager,
+        GraphicsContext& context,
+        const std::filesystem::path& effect
+    );
     /** Returns the panel name. */
     const char* GetName() const override { return "Strands"; }
     /** Builds the scene viewport and control hints. */
@@ -27,6 +36,10 @@ public:
     bool IsActive() const { return m_Active; }
     /** Shows the particlez reference objects only for the original tentacle sample. */
     bool ShouldShowReferenceObjects() const { return m_SampleIndex == 0; }
+    /** @brief Reports whether the climbing sample needs its reference wall. */
+    bool ShouldShowWall() const { return m_SampleIndex == 5; }
+    /** @brief Reports whether the fixed cable sample needs its poles. */
+    bool ShouldShowPowerPoles() const { return m_SampleIndex == 8; }
     /** Returns the scene camera. */
     const Camera& GetCamera() const { return m_Camera.GetCamera(); }
     /** Routes movement keys and viewport camera gestures. */
@@ -42,7 +55,7 @@ private:
     // Releases movement keys and camera gestures.
     void StopNavigation();
 
-    Aether::Manager& m_Manager;
+    EditorVFXManager& m_Manager;
     GraphicsContext& m_Context;
     Ref<Aether::SystemInstance> m_Instance;
     std::filesystem::path m_EffectDirectory;
@@ -54,6 +67,7 @@ private:
     Ref<GUI::Widget> m_Preview, m_Toolbar;
     Ref<GUI::TextBlock> m_Status;
     std::array<bool, 4> m_MoveKeys{};
+    bool m_GrowthPaused = false;
     bool m_Active = false, m_InputBlocked = false, m_ResetRequested = false;
     bool m_OrbitDragging = false, m_PanDragging = false;
 };

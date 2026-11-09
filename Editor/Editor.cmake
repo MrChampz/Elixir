@@ -116,3 +116,31 @@ if(BUILD_TESTING)
     include(GoogleTest)
     gtest_discover_tests(Editor.AnimationTests)
 endif()
+
+# Application shaders belong to Editor and are never packaged with Engine targets.
+if (DXC)
+    set(EDITOR_SHADER_OUTPUTS "")
+    foreach(shader Leaf Balloon)
+        foreach(stage vs ps)
+            get_dxc_profile("${stage}" profile)
+            set(source "${CMAKE_CURRENT_LIST_DIR}/Shaders/${shader}.${stage}.hlsl")
+            set(output "${OUTPUT_DIR}/Editor/EditorShaders/${shader}.${stage}.spirv")
+            add_custom_command(OUTPUT "${output}"
+                COMMAND "${CMAKE_COMMAND}" -E make_directory "${OUTPUT_DIR}/Editor/EditorShaders"
+                COMMAND "${DXC}" -spirv -T "${profile}" -E main "${source}" -Fo "${output}"
+                DEPENDS "${source}" "${CMAKE_SOURCE_DIR}/Shaders/Aether/ParticleData.hlsl"
+                VERBATIM)
+            list(APPEND EDITOR_SHADER_OUTPUTS "${output}")
+        endforeach()
+    endforeach()
+    add_custom_target(EditorShaders DEPENDS ${EDITOR_SHADER_OUTPUTS})
+    add_dependencies(Editor EditorShaders)
+endif()
+
+if (BUILD_TESTING)
+    target_sources(Editor.UnitTests PRIVATE
+        "${CMAKE_CURRENT_LIST_DIR}/Tests/LeafSettingsTest.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Source/VFX/Rendering/LeafSettings.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Tests/BalloonSettingsTest.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Source/VFX/Rendering/BalloonSettings.cpp")
+endif()

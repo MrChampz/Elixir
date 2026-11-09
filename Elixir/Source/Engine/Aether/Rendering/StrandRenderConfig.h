@@ -16,6 +16,18 @@ namespace Elixir::Aether::Rendering
         /** Multiplier applied to particle size when computing the tube radius. */
         float WidthScale = 0.3f;
 
+        /** Radius multiplier at the chain root. */
+        float RootWidthScale = 1;
+
+        /** Radius multiplier at the developed tip. */
+        float TipWidthScale = 1;
+
+        /** Positive exponent controlling the radius transition. */
+        float WidthExponent = 1;
+
+        /** Radius multiplier applied to side chains. */
+        float BranchWidthScale = 0.65f;
+
         /** Number of sides around each tube, from 3 to 12. */
         uint32_t RadialSegments = 8;
 
@@ -27,6 +39,10 @@ namespace Elixir::Aether::Rendering
         {
             return OrderStep > 0 && (MaxPoints == 0 || MaxPoints >= 2) &&
                 std::isfinite(WidthScale) && WidthScale > 0.0f &&
+                std::isfinite(RootWidthScale) && RootWidthScale >= 0 &&
+                std::isfinite(TipWidthScale) && TipWidthScale >= 0 &&
+                std::isfinite(WidthExponent) && WidthExponent > 0 &&
+                std::isfinite(BranchWidthScale) && BranchWidthScale >= 0 &&
                 RadialSegments >= 3 && RadialSegments <= 12 &&
                 Subdivisions >= 1 && Subdivisions <= 8;
         }

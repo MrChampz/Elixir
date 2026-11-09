@@ -342,12 +342,15 @@ namespace EditorVFX
             R"({"type":"SetPositionDisk","center":[0,0,0],"radius":0.5})",
             R"({"type":"SetVelocityCone","direction":[0,1,0],"angle":0.35,"minSpeed":1,"maxSpeed":2})",
             R"({"type":"SetRotation","min":0,"max":6.2831853})", R"({"type":"SetScale","min":0.8,"max":1.2})",
+            R"({"type":"SetGroupIdFromSpawnOrder","groupCount":1,"firstGroupId":0})",
             R"({"type":"SetGroupId","groupId":0})"
         } : std::vector<std::string>{
             R"({"type":"ApplyGravity","gravity":[0,-9.8,0,0]})", R"({"type":"ApplyLinearDrag","drag":0.1})",
             R"({"type":"CurlNoiseForce","strength":0.65,"frequency":2.2,"scrollVelocity":[0.12,0.09,0.07],"seed":0})",
             R"({"type":"SizeOverLife","start":0.1,"end":0.01})", R"({"type":"ScaleOverLife","start":1,"end":0})",
             R"({"type":"ApplyAngularVelocity","value":1})", R"({"type":"ColorOverLife","start":[1,1,1,1],"end":[1,1,1,0]})",
+            R"({"type":"DistanceConstraint","maxPoints":24,"orderStep":1,"segmentLength":0.04})",
+            R"({"type":"StrandGrowth","speed":0.18,"maxLength":0,"branchCount":0,"state":"Growing"})",
             R"({"type":"KillOutsideBounds","min":[-10,-10,-10],"max":[10,10,10]})"
         };
         std::vector<Value> result;

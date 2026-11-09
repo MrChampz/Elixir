@@ -10,6 +10,7 @@
 #include "Assets/MeshAssets.h"
 #include <Engine/Mesh/MeshLoaderRegistry.h>
 #include "Environment.h"
+#include "VFX/EditorVFXManager.h"
 #include <iostream>
 
 Editor::Editor(std::filesystem::path asset, bool openStrands)
@@ -55,8 +56,12 @@ Editor::Editor(std::filesystem::path asset, bool openStrands)
 void Editor::LoadStrandScene()
 {
     if (!ResizePreview(m_StrandScene, {960, 540, 1})) return;
-    m_StrandScene.Manager = CreateScope<Aether::Manager>(m_GraphicsContext.get(), m_ShaderLoader.get(),
-        GetMaterialRegistry(), *m_StrandScene.Materials);
+    m_StrandScene.Manager = CreateScope<EditorVFXManager>(
+        m_GraphicsContext.get(),
+        m_ShaderLoader.get(),
+        GetMaterialRegistry(),
+        *m_StrandScene.Materials
+    );
     const auto root = std::filesystem::path(ELIXIR_EDITOR_PROJECT_ROOT);
     if (auto mesh = MeshLoaderRegistry::LoadStaticMesh(root / "Assets/Meshes/StrandScene/StrandScene.gltf"))
     {
@@ -65,6 +70,16 @@ void Editor::LoadStrandScene()
             *m_StrandScene.Materials, *MeshLoaderRegistry::GetGeometryPool());
     }
     else EE_CORE_ERROR("Could not load the strand scene reference objects.");
+    const auto wall = MeshLoaderRegistry::LoadStaticMesh(
+        root / "Assets/Meshes/StrandScene/StrandWall.gltf"
+    );
+    if (wall)
+        m_StrandScene.Wall = *wall;
+    const auto poles = MeshLoaderRegistry::LoadStaticMesh(
+        root / "Assets/Meshes/StrandScene/PowerPoles.gltf"
+    );
+    if (poles)
+        m_StrandScene.PowerPoles = *poles;
     auto panel = CreateScope<StrandsPanel>(*m_StrandScene.Manager, *m_GraphicsContext,
         root / "Assets/VFX/StrandPlayground.json");
     m_StrandScene.Panel = panel.get();
@@ -132,6 +147,8 @@ Editor::~Editor()
     m_MeshDocuments.clear();
     m_StrandScene.Renderer.reset();
     m_StrandScene.Mesh.reset();
+    m_StrandScene.Wall.reset();
+    m_StrandScene.PowerPoles.reset();
     m_StrandScene.Manager.reset();
     m_SceneRenderer.reset();
     m_SceneMesh.reset();
@@ -306,15 +323,27 @@ void Editor::Render(const Timestep frameTime)
             m_GraphicsContext->Clear(m_StrandScene.HDRTarget);
             const auto& camera = m_StrandScene.Panel->GetCamera();
             if (m_SceneLightingReady && m_StrandScene.Renderer &&
-                m_StrandScene.Panel->ShouldShowReferenceObjects())
+                (m_StrandScene.Panel->ShouldShowReferenceObjects() ||
+                    m_StrandScene.Panel->ShouldShowWall() ||
+                    m_StrandScene.Panel->ShouldShowPowerPoles()))
             {
                 m_StrandScene.Renderer->BeginFrame(camera, m_SceneLighting);
-                m_StrandScene.Renderer->Render(m_StrandScene.Mesh);
+                if (m_StrandScene.Panel->ShouldShowReferenceObjects())
+                    m_StrandScene.Renderer->Render(m_StrandScene.Mesh);
+                if (m_StrandScene.Panel->ShouldShowWall() && m_StrandScene.Wall)
+                    m_StrandScene.Renderer->Render(m_StrandScene.Wall);
+                if (m_StrandScene.Panel->ShouldShowPowerPoles() && m_StrandScene.PowerPoles)
+                    m_StrandScene.Renderer->Render(m_StrandScene.PowerPoles);
                 m_StrandScene.Renderer->EndFrame();
             }
             m_StrandScene.Manager->Render(camera, m_StrandScene.HDRTarget);
         }
         m_StrandScene.Materials->RenderFrame();
+        if (active)
+            m_StrandScene.Manager->RenderCustomRenderers(
+                m_StrandScene.HDRTarget,
+                m_StrandScene.DepthTarget
+            );
         if (active)
         {
             m_StrandScene.PostProcess->Apply(m_StrandScene.HDRTarget, m_StrandScene.DisplayTarget);
@@ -332,6 +361,7 @@ void Editor::Render(const Timestep frameTime)
         document.Panel->Render(frameTime, document.HDRTarget);
         document.Materials->RenderFrame();
         if (!document.Panel->IsActive()) continue;
+        document.Manager->RenderCustomRenderers(document.HDRTarget, document.DepthTarget);
         document.PostProcess->Apply(document.HDRTarget, document.DisplayTarget);
         const auto command = m_GraphicsContext->GetSecondaryCommandBuffer();
         command->Begin({.ColorAttachment = document.DisplayTarget, .RenderArea = document.DisplayTarget->GetExtent()});

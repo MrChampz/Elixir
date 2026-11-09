@@ -13,6 +13,7 @@ class VFXPanel;
 class MeshPanel;
 class ViewportPanel;
 class StrandsPanel;
+class EditorVFXManager;
 
 /** @brief Hosts scene tools and tabbed VFX and mesh asset viewers. */
 class Editor final : public Elixir::Application
@@ -82,8 +83,8 @@ private:
     };
     struct SStrandScene : SPreview
     {
-        Scope<Aether::Manager> Manager;
-        Ref<StaticMesh> Mesh;
+        Scope<EditorVFXManager> Manager;
+        Ref<StaticMesh> Mesh, Wall, PowerPoles;
         Scope<StaticMeshRenderer> Renderer;
         StrandsPanel* Panel = nullptr;
     };

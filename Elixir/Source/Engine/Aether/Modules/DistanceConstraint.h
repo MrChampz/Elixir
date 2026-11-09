@@ -39,28 +39,7 @@ namespace Elixir::Aether::Modules
         static Scope<Module> Create(
             ModuleParseContext& context,
             simdjson::ondemand::object& object
-        )
-        {
-            SDistanceConstraint config;
-            if (ModuleParseContext::HasField(object, "maxPoints"))
-                config.MaxPoints = context.RequireUInt(object, "maxPoints");
-            if (ModuleParseContext::HasField(object, "orderStep"))
-                config.OrderStep = context.RequireUInt(object, "orderStep");
-            if (ModuleParseContext::HasField(object, "segmentLength"))
-                config.SegmentLength = context.RequireFloat(object, "segmentLength");
-            if (ModuleParseContext::HasField(object, "stiffness"))
-                config.Stiffness = context.RequireFloat(object, "stiffness");
-            if (ModuleParseContext::HasField(object, "pinFirstParticle"))
-                config.PinFirstParticle = context.RequireBoolean(object, "pinFirstParticle");
-
-            if (!config.IsValid())
-                context.Fail("Invalid distance constraint configuration.");
-
-            if (context.Failed())
-                return nullptr;
-
-            return CreateScope<DistanceConstraint>(config);
-        }
+        );
 
     private:
         SDistanceConstraint m_Config;

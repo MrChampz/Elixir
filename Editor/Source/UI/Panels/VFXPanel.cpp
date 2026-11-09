@@ -628,6 +628,14 @@ bool VFXPanel::CompilePreview()
     if (!m_Document) return false;
     m_NeedsCompile = false;
     std::string error;
+    std::vector<std::optional<EditorVFX::LeafSettings>> leaves;
+    std::vector<std::optional<EditorVFX::BalloonSettings>> balloons;
+    if (!EditorVFX::ParseLeafRenderers(m_Document->Root(), leaves, error) ||
+        !EditorVFX::ParseBalloonRenderers(m_Document->Root(), balloons, error))
+    {
+        UpdateStatus("Compile failed: " + error);
+        return false;
+    }
     const auto replacement = Aether::Effect::ParseEffect(m_Document->Root().JSON(), &error);
     if (!replacement) { UpdateStatus("Compile failed: " + error); return false; }
     const auto existing = m_LoadedSystems.find(m_SelectedPath);
@@ -653,12 +661,19 @@ bool VFXPanel::CompilePreview()
     }
     bool compiled = false;
     const auto system = current ? current : replacement;
-    const bool completed = m_Context.RunRenderTaskAndWait([this, &compiled, system, replacement, current]
-    {
-        if (current) current->Swap(*replacement);
-        compiled = m_Manager.Recompile(system);
-        if (!compiled && current) current->Swap(*replacement);
-    });
+    const bool completed = m_Context.RunRenderTaskAndWait(
+        [this, &compiled, &leaves, &balloons, system, replacement, current]
+        {
+            if (current) current->Swap(*replacement);
+            compiled = m_Manager.Recompile(system);
+            if (!compiled && current) current->Swap(*replacement);
+            if (compiled)
+            {
+                m_Manager.SetLeafRenderers(std::move(leaves));
+                m_Manager.SetBalloonRenderers(std::move(balloons));
+            }
+        }
+    );
     if (!completed || !compiled) { UpdateStatus("Could not compile the effect. Previous preview preserved."); return false; }
     m_System = system; m_LoadedSystems.insert_or_assign(m_SelectedPath, system);
     m_AppliedDefinitions[m_SelectedPath] = m_Document->Root().JSON();

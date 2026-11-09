@@ -5,6 +5,7 @@
 #include <Engine/Aether/Effect/Effect.h>
 #include <Engine/Aether/Rendering/FrameSubmission.h>
 #include <Engine/Aether/Simulation/Simulator.h>
+#include <Engine/Aether/Simulation/ConstraintData.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
 #include <Graphics/Vulkan/VulkanCommandBuffer.h>
 #include <Graphics/Vulkan/VulkanShader.h>
@@ -12,6 +13,7 @@
 #include <bit>
 #include <cmath>
 #include <cstring>
+#include <glm/gtc/matrix_transform.hpp>
 
 using namespace Elixir;
 using namespace Elixir::Vulkan;
@@ -56,6 +58,14 @@ TEST(ParticlesConstraintsTest, SolvesInterleavedParticleChainsAndPreservesLifecy
         EShaderStage::Compute
     );
     ASSERT_TRUE(shader);
+    const Aether::Simulation::SConstraintFrameData constraintData{};
+    const auto constraintBuffer = UniformBuffer::Create(
+        context,
+        sizeof(constraintData),
+        &constraintData
+    );
+    if (shader->HasBinding("cbConstraint"))
+        shader->BindConstantBuffer("cbConstraint", constraintBuffer);
     const auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
     ASSERT_TRUE(pipeline);
     const auto ranges = static_cast<VulkanShader*>(shader.get())->GetPushConstantRanges();
@@ -218,6 +228,14 @@ TEST(ParticlesConstraintsTest, TubeReadsParticlePositionsAndRejectsBrokenConnect
         EShaderStage::Compute
     );
     ASSERT_TRUE(shader);
+    const Aether::Simulation::SConstraintFrameData constraintData{};
+    const auto constraintBuffer = UniformBuffer::Create(
+        context,
+        sizeof(constraintData),
+        &constraintData
+    );
+    if (shader->HasBinding("cbConstraint"))
+        shader->BindConstantBuffer("cbConstraint", constraintBuffer);
     const auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
     ASSERT_TRUE(pipeline);
     struct SConstants
@@ -231,8 +249,14 @@ TEST(ParticlesConstraintsTest, TubeReadsParticlePositionsAndRejectsBrokenConnect
         uint32_t OrderStep = 1;
         uint32_t MaterialIndex = 0;
         uint32_t MaxPoints = 4;
+        float RootWidthScale = 1;
+        float TipWidthScale = 1;
+        float WidthExponent = 1;
+        float BranchWidthScale = 1;
+        uint32_t HasGrowth = 0;
+        uint32_t BranchCount = 0;
     } pc;
-    static_assert(sizeof(SConstants) == 96);
+    static_assert(sizeof(SConstants) == 120);
     pc.WorldTransform[0].x = 2;
     pc.WorldTransform[1].y = 3;
     pc.WorldTransform[2].z = 4;
@@ -391,5 +415,182 @@ TEST(ParticlesConstraintsTest, SolverAlternatesModulesForRibbonAndStrandEmitters
     {
         EXPECT_EQ(particle.Metadata.w, 1);
         EXPECT_NEAR(particle.VelocityAge.w, 1.0f / 60, 0.00001f);
+    }
+}
+
+TEST(ParticlesConstraintsTest, DevelopsBranchesPausesAndPinsWorldAttachments)
+{
+    using namespace Aether::Simulation;
+    const auto context = VulkanTestContext::Get().GetGraphicsContext();
+    ShaderLoader loader(context);
+    const auto shader = loader.LoadShader(
+        "./Shaders/Aether",
+        "ParticlesConstraints",
+        EShaderStage::Compute
+    );
+    ASSERT_TRUE(shader);
+    auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
+    ASSERT_TRUE(pipeline);
+    static_assert(sizeof(SConstraintFrameData) == 608);
+    static_assert(offsetof(SConstraintFrameData, Surfaces) == 224);
+    std::array<SConnectionParticle, 14> points{};
+    const auto buffer = StorageBuffer::Create(context, sizeof(points));
+    auto info = StagingBuffer::CreateBufferInfo(sizeof(points), nullptr);
+    info.Usage = EBufferUsage::TransferDst;
+    const Ref<StagingBuffer> readback = CreateRef<VulkanStagingBuffer>(context, info);
+    ASSERT_TRUE(buffer);
+    ASSERT_TRUE(readback);
+    shader->BindStorageBuffer("particles", buffer);
+    SConstraintPushConstants pc;
+    pc.ParticleCount = 12;
+    pc.MaxPoints = 4;
+    pc.OrderStep = 3;
+    SDistanceConstraint config;
+    config.MaxPoints = pc.MaxPoints;
+    config.OrderStep = pc.OrderStep;
+    config.SegmentLength = pc.SegmentLength;
+    config.HasGrowth = true;
+    config.Growth.Speed = 1;
+    config.Growth.BranchCount = 2;
+    config.Growth.BranchInterval = 1;
+    config.Growth.BranchLengthScale = 0.5f;
+    for (uint32_t slot = 0; slot < pc.ParticleCount; ++slot)
+    {
+        auto& particle = points[slot + 1];
+        particle.PositionSize = {0, 0, 0, 2};
+        particle.TangentGroup.w = std::bit_cast<float>(slot % pc.OrderStep);
+        particle.Metadata.y = std::bit_cast<float>(slot);
+    }
+    auto data = BuildConstraintFrameData(config, glm::mat4(1));
+    ASSERT_TRUE(data);
+    const auto dispatch = [&]
+    {
+        const auto uniform = UniformBuffer::Create(context, sizeof(*data), &*data);
+        ASSERT_TRUE(uniform);
+        shader->BindConstantBuffer("cbConstraint", uniform);
+        const auto upload = StagingBuffer::Create(context, sizeof(points), points.data());
+        const auto command = context->GetUploadCommandBuffer();
+        command->Begin();
+        buffer->Barrier(command, EPipelineStage::Transfer, EPipelineAccess::TransferWrite);
+        command->CopyBuffer(upload, buffer);
+        buffer->Barrier(
+            command,
+            EPipelineStage::ComputeShader,
+            EPipelineAccess::ShaderRead | EPipelineAccess::ShaderWrite
+        );
+        pipeline->Bind(command);
+        shader->SetPushConstant(command, "pc", &pc, sizeof(pc));
+        command->Dispatch(1);
+        buffer->Barrier(command, EPipelineStage::Transfer, EPipelineAccess::TransferRead);
+        buffer->Copy(command, readback);
+        command->End();
+        command->Flush();
+        std::memcpy(points.data(), readback->Map(), sizeof(points));
+        readback->Unmap();
+    };
+    for (int step = 0; step < 5; ++step) dispatch();
+    EXPECT_NEAR(points[1].Transform.w, 0.5f, 0.0001f);
+    EXPECT_EQ(points[2].Transform.w, 0);
+    EXPECT_NEAR(points[4].Transform.z, 0.5f, 0.0001f);
+    EXPECT_EQ(points[7].Transform.z, 0);
+    data->Topology.w = uint32_t(Aether::Core::EStrandGrowthState::Paused);
+    for (int step = 0; step < 3; ++step) dispatch();
+    EXPECT_NEAR(points[1].Transform.w, 0.5f, 0.0001f);
+    data->Topology.w = uint32_t(Aether::Core::EStrandGrowthState::Growing);
+    for (int step = 0; step < 20; ++step) dispatch();
+    EXPECT_NEAR(points[1].Transform.w, 2.5f, 0.0001f);
+    EXPECT_GT(points[2].Transform.w, 0);
+    EXPECT_NEAR(
+        glm::length(glm::vec3(points[2].PositionSize - points[4].PositionSize)),
+        0,
+        0.0001f
+    );
+    EXPECT_NEAR(
+        glm::length(glm::vec3(points[3].PositionSize - points[7].PositionSize)),
+        0,
+        0.0001f
+    );
+    for (uint32_t index = 1; index <= 12; ++index)
+    {
+        EXPECT_TRUE(std::isfinite(points[index].PositionSize.x));
+        EXPECT_EQ(points[index].Metadata.y, std::bit_cast<float>(index - 1));
+        EXPECT_EQ(points[index].Metadata.w, 1);
+    }
+    EXPECT_EQ(points[0].PositionSize, glm::vec4(0));
+    EXPECT_EQ(points[13].PositionSize, glm::vec4(0));
+
+    // Two fixed ends use simulation and world coordinates independently.
+    pc.ParticleCount = 4;
+    pc.OrderStep = 1;
+    config.HasGrowth = false;
+    config.OrderStep = 1;
+    config.EndAttachment.Enabled = true;
+    config.EndAttachment.Space = Aether::Core::EStrandEndSpace::World;
+    config.EndAttachment.Position = {5, 2, 0};
+    auto world = glm::translate(glm::mat4(1), glm::vec3(5, 0, 0));
+    data = BuildConstraintFrameData(config, world);
+    ASSERT_TRUE(data);
+    for (uint32_t slot = 0; slot < 4; ++slot)
+    {
+        points[slot + 1] = SConnectionParticle{};
+        points[slot + 1].Metadata.y = std::bit_cast<float>(slot);
+    }
+    dispatch();
+    EXPECT_EQ(glm::vec3(points[1].PositionSize), glm::vec3(0));
+    EXPECT_EQ(glm::vec3(points[4].PositionSize), glm::vec3(0, 2, 0));
+
+    // Surface queries stay in world coordinates when the instance moves.
+    config.EndAttachment.Enabled = false;
+    config.SurfaceAttachment.Count = 1;
+    auto& surface = config.SurfaceAttachment.Surfaces.front();
+    surface.Type = Aether::Core::EStrandSurfaceType::Plane;
+    surface.Center = {0, 0, 1};
+    surface.Normal = {0, 0, 1};
+    config.SurfaceAttachment.ClimbStrength = 0;
+    world = glm::translate(glm::mat4(1), glm::vec3(0, 0, 1));
+    data = BuildConstraintFrameData(config, world);
+    ASSERT_TRUE(data);
+    for (uint32_t slot = 0; slot < 4; ++slot)
+    {
+        points[slot + 1] = SConnectionParticle{};
+        points[slot + 1].PositionSize = {float(slot), 0, 0.014f, 1};
+        points[slot + 1].Metadata.y = std::bit_cast<float>(slot);
+    }
+    dispatch();
+    for (uint32_t slot = 1; slot < 4; ++slot)
+        EXPECT_NEAR(points[slot + 1].PositionSize.z, 0.014f, 0.0001f);
+
+    pc.Stiffness = 0;
+    config.SurfaceAttachment.Surfaces.front().Type = Aether::Core::EStrandSurfaceType::Sphere;
+    config.SurfaceAttachment.Surfaces.front().Center = {};
+    config.SurfaceAttachment.Surfaces.front().Radius = 1;
+    data = BuildConstraintFrameData(config, glm::mat4(1));
+    ASSERT_TRUE(data);
+    for (uint32_t slot = 0; slot < 4; ++slot)
+    {
+        points[slot + 1].PositionSize = {1.03f, 0, 0, 1};
+        points[slot + 1].VelocityAge = {};
+    }
+    dispatch();
+    for (uint32_t slot = 1; slot < 4; ++slot)
+        EXPECT_NEAR(points[slot + 1].PositionSize.x, 1.014f, 0.0001f);
+
+    auto& box = config.SurfaceAttachment.Surfaces.front();
+    box.Type = Aether::Core::EStrandSurfaceType::Box;
+    box.HalfExtents = glm::vec3(1);
+    box.Rounding = 0.2f;
+    data = BuildConstraintFrameData(config, glm::mat4(1));
+    ASSERT_TRUE(data);
+    for (uint32_t slot = 0; slot < 4; ++slot)
+    {
+        points[slot + 1].PositionSize = {0.96f, 0.96f, 0, 1};
+        points[slot + 1].VelocityAge = {};
+    }
+    dispatch();
+    const float roundedCorner = 0.8f + 0.214f / std::sqrt(2.0f);
+    for (uint32_t slot = 1; slot < 4; ++slot)
+    {
+        EXPECT_NEAR(points[slot + 1].PositionSize.x, roundedCorner, 0.0001f);
+        EXPECT_NEAR(points[slot + 1].PositionSize.y, roundedCorner, 0.0001f);
     }
 }

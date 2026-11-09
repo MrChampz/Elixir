@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Engine/Core/Core.h>
+#include <optional>
 #include <Engine/Aether/Core/ParameterStore.h>
 #include <Engine/Aether/Core/Particle.h>
 #include <Engine/Aether/Core/Operation.h>
@@ -124,6 +125,18 @@ namespace Elixir::Aether::Modules
         void EmitDistanceConstraint(const SDistanceConstraint& constraint);
 
         /**
+         * @brief Configures development for this emitter's single distance constraint.
+         * @param settings Growth timing and branch topology.
+         */
+        void EmitStrandGrowth(const SStrandGrowthSettings& settings);
+
+        /** @brief Returns the optional development configuration. */
+        const std::optional<SStrandGrowthSettings>& GetStrandGrowth() const
+        {
+            return m_Growth;
+        }
+
+        /**
          * @brief Compile a scalar literal or named parameter binding.
          * @param value Literal used when no named parameter matches.
          * @param parameter Optional parameter name; empty selects the literal.
@@ -229,6 +242,7 @@ namespace Elixir::Aether::Modules
         float m_GravityScale;
 
         bool m_Valid = true;
+        std::optional<SStrandGrowthSettings> m_Growth;
 
         // Includes the logical type in each key to preserve literal identity.
         std::map<std::array<uint32_t, 5>, uint32_t> m_Literals;

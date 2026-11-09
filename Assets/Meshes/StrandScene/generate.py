@@ -3,6 +3,7 @@ import base64
 import json
 import math
 import struct
+import sys
 from pathlib import Path
 
 vertices, normals, indices = [], [], []
@@ -25,15 +26,15 @@ def grid(rows, columns, sample, center):
             indices.extend((a, a + 1, a + columns + 1, a + 1, a + columns + 2, a + columns + 1))
 
 
-def sphere(center, radius):
+def sphere(center, radius, rows=16, columns=24):
     def sample(v, u):
         phi, theta = v * math.pi, u * math.tau
         normal = (math.sin(phi) * math.cos(theta), math.cos(phi), math.sin(phi) * math.sin(theta))
         return tuple(radius * x for x in normal), normal
-    grid(16, 24, sample, center)
+    grid(rows, columns, sample, center)
 
 
-def rounded_box(center, half, radius):
+def rounded_box(center, half, radius, subdivisions=12):
     for axis in range(3):
         for sign in (-1, 1):
             def sample(v, u, axis=axis, sign=sign):
@@ -48,13 +49,30 @@ def rounded_box(center, half, radius):
                 length = math.sqrt(sum(x * x for x in delta))
                 normal = tuple(x / length for x in delta)
                 return tuple(inner[i] + radius * normal[i] for i in range(3)), normal
-            grid(12, 12, sample, center)
+            grid(subdivisions, subdivisions, sample, center)
 
 
 sphere((0.62, 0.05, 0), 0.24)
 rounded_box((-0.6, 0.1, -0.05), (0.2, 0.2, 0.2), 0.05)
 sphere((0, 0.6, -0.1), 0.16)
 rounded_box((-0.05, -0.62, 0), (0.34, 0.11, 0.24), 0.03)
+
+if "--wall" in sys.argv:
+    vertices.clear()
+    normals.clear()
+    indices.clear()
+    rounded_box((0, 0, -0.12), (1.2, 1.0, 0.04), 0.01)
+
+if "--poles" in sys.argv:
+    vertices.clear()
+    normals.clear()
+    indices.clear()
+    for x in (-1.05, 0.0, 1.05):
+        rounded_box((x, -.075, 0), (.045, .775, .045), .012, 4)
+        rounded_box((x, .61, 0), (.065, .035, .24), .01, 4)
+        for z in (-.16, 0.0, .16):
+            rounded_box((x, .655, z), (.025, .03, .025), .008, 4)
+            sphere((x, .69, z), .027, 8, 12)
 
 chunks = [struct.pack('<' + 'f' * len(values) * 3, *(x for value in values for x in value)) for values in (vertices, normals)]
 chunks.append(struct.pack('<' + 'I' * len(indices), *indices))
@@ -75,4 +93,11 @@ asset = {
         {'bufferView': 2, 'componentType': 5125, 'count': len(indices), 'type': 'SCALAR'},
     ],
 }
-Path(__file__).with_name('StrandScene.gltf').write_text(json.dumps(asset, separators=(',', ':')) + '\n')
+if "--poles" in sys.argv:
+    asset['nodes'][0]['name'] = 'Utility poles'
+    asset['materials'][0]['name'] = 'Pole wood'
+    asset['materials'][0]['pbrMetallicRoughness']['baseColorFactor'] = [.32, .2, .11, 1]
+    asset['materials'][0]['pbrMetallicRoughness']['metallicFactor'] = 0
+    asset['materials'][0]['pbrMetallicRoughness']['roughnessFactor'] = .75
+filename = 'PowerPoles.gltf' if '--poles' in sys.argv else ('StrandWall.gltf' if '--wall' in sys.argv else 'StrandScene.gltf')
+Path(__file__).with_name(filename).write_text(json.dumps(asset, separators=(',', ':')) + '\n')

@@ -128,6 +128,14 @@ namespace Elixir::Aether::Effect
                     config.OrderStep = RequireUInt(object, "orderStep");
                 if (HasField(object, "widthScale"))
                     config.WidthScale = RequireFloat(object, "widthScale");
+                if (HasField(object, "rootWidthScale"))
+                    config.RootWidthScale = RequireFloat(object, "rootWidthScale");
+                if (HasField(object, "tipWidthScale"))
+                    config.TipWidthScale = RequireFloat(object, "tipWidthScale");
+                if (HasField(object, "widthExponent"))
+                    config.WidthExponent = RequireFloat(object, "widthExponent");
+                if (HasField(object, "branchWidthScale"))
+                    config.BranchWidthScale = RequireFloat(object, "branchWidthScale");
                 if (HasField(object, "radialSegments"))
                     config.RadialSegments = RequireUInt(object, "radialSegments");
                 if (HasField(object, "subdivisions"))

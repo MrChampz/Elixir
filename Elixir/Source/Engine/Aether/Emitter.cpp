@@ -125,6 +125,32 @@ namespace Elixir::Aether
         emitter.UpdateOperationCount = (uint32_t)program.Operations.size() - emitter.UpdateOperationOffset;
         emitter.ConstraintCount =
             uint32_t(program.Constraints.size()) - emitter.ConstraintOffset;
+        if (const auto& growth = context.GetStrandGrowth())
+        {
+            if (emitter.ConstraintCount != 1)
+            {
+                EE_CORE_ERROR(
+                    "Growth requires exactly one distance constraint in '{}'.",
+                    m_Name
+                );
+                return std::nullopt;
+            }
+            auto& constraint = program.Constraints[emitter.ConstraintOffset];
+            constraint.HasGrowth = true;
+            constraint.Growth = *growth;
+            const uint64_t capacity = uint64_t(constraint.MaxPoints) * constraint.OrderStep;
+            if (!constraint.IsValid() || !constraint.PinFirstParticle ||
+                capacity != m_MaxParticles || m_KillOnLifetimeExpired ||
+                emitter.SpawnRatePerSecond != 0 || !m_TriggerEmitterName.empty() ||
+                m_BurstCount != m_MaxParticles || m_BurstIntervalSeconds != 0)
+            {
+                EE_CORE_ERROR(
+                    "Growth requires persistent, fully burst particle chains in '{}'.",
+                    m_Name
+                );
+                return std::nullopt;
+            }
+        }
         if (!context.IsValid())
             return std::nullopt;
 

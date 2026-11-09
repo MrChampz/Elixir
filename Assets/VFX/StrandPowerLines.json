@@ -1,0 +1,737 @@
+{
+  "name": "Power Lines",
+  "emitters": [
+    {
+      "name": "Span -1.05 to 0 Wire 1",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 40,
+      "spawnRate": 0,
+      "strand": {
+        "widthScale": 0.3,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "radialSegments": 8,
+        "subdivisions": 4,
+        "maxPoints": 40,
+        "orderStep": 1
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            -1.05,
+            0.69,
+            -0.16
+          ],
+          "max": [
+            -1.05,
+            0.69,
+            -0.16
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 12,
+          "max": 12
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.13,
+            0.16,
+            0.2,
+            1
+          ]
+        },
+        {
+          "type": "SetGroupIdFromSpawnOrder",
+          "groupCount": 1,
+          "firstGroupId": 0
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "gravity": [
+            0,
+            -1.8,
+            0
+          ]
+        },
+        {
+          "type": "CurlNoiseForce",
+          "strength": 0.06,
+          "frequency": 1.4,
+          "seed": 51,
+          "scrollVelocity": [
+            0,
+            0.45,
+            0
+          ]
+        },
+        {
+          "type": "ApplyLinearDrag",
+          "drag": 3.7125242230852518
+        },
+        {
+          "type": "DistanceConstraint",
+          "maxPoints": 40,
+          "orderStep": 1,
+          "segmentLength": 0.03,
+          "stiffness": 1,
+          "pinFirstParticle": true,
+          "endAttachment": {
+            "enabled": true,
+            "position": [
+              0,
+              0.69,
+              -0.16
+            ],
+            "space": "Simulation"
+          }
+        }
+      ],
+      "burst": {
+        "count": 40,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      },
+      "solver": {
+        "iterations": 16
+      }
+    },
+    {
+      "name": "Span -1.05 to 0 Wire 2",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 40,
+      "spawnRate": 0,
+      "strand": {
+        "widthScale": 0.3,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "radialSegments": 8,
+        "subdivisions": 4,
+        "maxPoints": 40,
+        "orderStep": 1
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            -1.05,
+            0.69,
+            0
+          ],
+          "max": [
+            -1.05,
+            0.69,
+            0
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 12,
+          "max": 12
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.13,
+            0.16,
+            0.2,
+            1
+          ]
+        },
+        {
+          "type": "SetGroupIdFromSpawnOrder",
+          "groupCount": 1,
+          "firstGroupId": 0
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "gravity": [
+            0,
+            -1.8,
+            0
+          ]
+        },
+        {
+          "type": "CurlNoiseForce",
+          "strength": 0.06,
+          "frequency": 1.4,
+          "seed": 52,
+          "scrollVelocity": [
+            0,
+            0.45,
+            0
+          ]
+        },
+        {
+          "type": "ApplyLinearDrag",
+          "drag": 3.7125242230852518
+        },
+        {
+          "type": "DistanceConstraint",
+          "maxPoints": 40,
+          "orderStep": 1,
+          "segmentLength": 0.03,
+          "stiffness": 1,
+          "pinFirstParticle": true,
+          "endAttachment": {
+            "enabled": true,
+            "position": [
+              0,
+              0.69,
+              0
+            ],
+            "space": "Simulation"
+          }
+        }
+      ],
+      "burst": {
+        "count": 40,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      },
+      "solver": {
+        "iterations": 16
+      }
+    },
+    {
+      "name": "Span -1.05 to 0 Wire 3",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 40,
+      "spawnRate": 0,
+      "strand": {
+        "widthScale": 0.3,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "radialSegments": 8,
+        "subdivisions": 4,
+        "maxPoints": 40,
+        "orderStep": 1
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            -1.05,
+            0.69,
+            0.16
+          ],
+          "max": [
+            -1.05,
+            0.69,
+            0.16
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 12,
+          "max": 12
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.13,
+            0.16,
+            0.2,
+            1
+          ]
+        },
+        {
+          "type": "SetGroupIdFromSpawnOrder",
+          "groupCount": 1,
+          "firstGroupId": 0
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "gravity": [
+            0,
+            -1.8,
+            0
+          ]
+        },
+        {
+          "type": "CurlNoiseForce",
+          "strength": 0.06,
+          "frequency": 1.4,
+          "seed": 53,
+          "scrollVelocity": [
+            0,
+            0.45,
+            0
+          ]
+        },
+        {
+          "type": "ApplyLinearDrag",
+          "drag": 3.7125242230852518
+        },
+        {
+          "type": "DistanceConstraint",
+          "maxPoints": 40,
+          "orderStep": 1,
+          "segmentLength": 0.03,
+          "stiffness": 1,
+          "pinFirstParticle": true,
+          "endAttachment": {
+            "enabled": true,
+            "position": [
+              0,
+              0.69,
+              0.16
+            ],
+            "space": "Simulation"
+          }
+        }
+      ],
+      "burst": {
+        "count": 40,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      },
+      "solver": {
+        "iterations": 16
+      }
+    },
+    {
+      "name": "Span 0 to 1.05 Wire 1",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 40,
+      "spawnRate": 0,
+      "strand": {
+        "widthScale": 0.3,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "radialSegments": 8,
+        "subdivisions": 4,
+        "maxPoints": 40,
+        "orderStep": 1
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            0,
+            0.69,
+            -0.16
+          ],
+          "max": [
+            0,
+            0.69,
+            -0.16
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 12,
+          "max": 12
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.13,
+            0.16,
+            0.2,
+            1
+          ]
+        },
+        {
+          "type": "SetGroupIdFromSpawnOrder",
+          "groupCount": 1,
+          "firstGroupId": 0
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "gravity": [
+            0,
+            -1.8,
+            0
+          ]
+        },
+        {
+          "type": "CurlNoiseForce",
+          "strength": 0.06,
+          "frequency": 1.4,
+          "seed": 51,
+          "scrollVelocity": [
+            0,
+            0.45,
+            0
+          ]
+        },
+        {
+          "type": "ApplyLinearDrag",
+          "drag": 3.7125242230852518
+        },
+        {
+          "type": "DistanceConstraint",
+          "maxPoints": 40,
+          "orderStep": 1,
+          "segmentLength": 0.03,
+          "stiffness": 1,
+          "pinFirstParticle": true,
+          "endAttachment": {
+            "enabled": true,
+            "position": [
+              1.05,
+              0.69,
+              -0.16
+            ],
+            "space": "Simulation"
+          }
+        }
+      ],
+      "burst": {
+        "count": 40,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      },
+      "solver": {
+        "iterations": 16
+      }
+    },
+    {
+      "name": "Span 0 to 1.05 Wire 2",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 40,
+      "spawnRate": 0,
+      "strand": {
+        "widthScale": 0.3,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "radialSegments": 8,
+        "subdivisions": 4,
+        "maxPoints": 40,
+        "orderStep": 1
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            0,
+            0.69,
+            0
+          ],
+          "max": [
+            0,
+            0.69,
+            0
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 12,
+          "max": 12
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.13,
+            0.16,
+            0.2,
+            1
+          ]
+        },
+        {
+          "type": "SetGroupIdFromSpawnOrder",
+          "groupCount": 1,
+          "firstGroupId": 0
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "gravity": [
+            0,
+            -1.8,
+            0
+          ]
+        },
+        {
+          "type": "CurlNoiseForce",
+          "strength": 0.06,
+          "frequency": 1.4,
+          "seed": 52,
+          "scrollVelocity": [
+            0,
+            0.45,
+            0
+          ]
+        },
+        {
+          "type": "ApplyLinearDrag",
+          "drag": 3.7125242230852518
+        },
+        {
+          "type": "DistanceConstraint",
+          "maxPoints": 40,
+          "orderStep": 1,
+          "segmentLength": 0.03,
+          "stiffness": 1,
+          "pinFirstParticle": true,
+          "endAttachment": {
+            "enabled": true,
+            "position": [
+              1.05,
+              0.69,
+              0
+            ],
+            "space": "Simulation"
+          }
+        }
+      ],
+      "burst": {
+        "count": 40,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      },
+      "solver": {
+        "iterations": 16
+      }
+    },
+    {
+      "name": "Span 0 to 1.05 Wire 3",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 40,
+      "spawnRate": 0,
+      "strand": {
+        "widthScale": 0.3,
+        "rootWidthScale": 1,
+        "tipWidthScale": 1,
+        "widthExponent": 1,
+        "radialSegments": 8,
+        "subdivisions": 4,
+        "maxPoints": 40,
+        "orderStep": 1
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            0,
+            0.69,
+            0.16
+          ],
+          "max": [
+            0,
+            0.69,
+            0.16
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 12,
+          "max": 12
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.13,
+            0.16,
+            0.2,
+            1
+          ]
+        },
+        {
+          "type": "SetGroupIdFromSpawnOrder",
+          "groupCount": 1,
+          "firstGroupId": 0
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "gravity": [
+            0,
+            -1.8,
+            0
+          ]
+        },
+        {
+          "type": "CurlNoiseForce",
+          "strength": 0.06,
+          "frequency": 1.4,
+          "seed": 53,
+          "scrollVelocity": [
+            0,
+            0.45,
+            0
+          ]
+        },
+        {
+          "type": "ApplyLinearDrag",
+          "drag": 3.7125242230852518
+        },
+        {
+          "type": "DistanceConstraint",
+          "maxPoints": 40,
+          "orderStep": 1,
+          "segmentLength": 0.03,
+          "stiffness": 1,
+          "pinFirstParticle": true,
+          "endAttachment": {
+            "enabled": true,
+            "position": [
+              1.05,
+              0.69,
+              0.16
+            ],
+            "space": "Simulation"
+          }
+        }
+      ],
+      "burst": {
+        "count": 40,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      },
+      "solver": {
+        "iterations": 16
+      }
+    }
+  ]
+}

@@ -99,6 +99,20 @@ namespace Elixir::Aether
 
         const MaterialRenderScene scene = GetRenderer().BuildRenderScene(*frame, camera);
         m_MaterialSystem.Submit(scene);
+        OnRenderFrame(frame, camera, sceneTarget);
+    }
+
+    void Manager::OnRenderFrame(
+        const Ref<const Simulation::RenderFrame>&,
+        const Camera&,
+        const Ref<Image>&
+    )
+    {
+    }
+
+    void Manager::SetStrandGrowthPaused(const bool paused)
+    {
+        GetSimulator().m_StrandGrowthPaused = paused;
     }
 
     const SSimulationMetrics& Manager::GetLastSimulationMetrics() const

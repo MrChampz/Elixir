@@ -330,6 +330,7 @@ namespace Elixir::Aether::Simulation
         Ref<DynamicStorageBuffer> m_ConstantBuffer;
         Ref<DynamicStorageBuffer> m_ParameterBuffer;
         Ref<UniformBuffer> m_ParamsBuffer;
+        Ref<UniformBuffer> m_ConstraintConstants;
 
         Ref<Shader> m_SchedulerBeginShader;
         Ref<ComputePipeline> m_SchedulerBeginPipeline;
@@ -340,6 +341,7 @@ namespace Elixir::Aether::Simulation
         Ref<Shader> m_SchedulerFinalizeShader;
         Ref<ComputePipeline> m_SchedulerFinalizePipeline;
 
+        bool m_StrandGrowthPaused = false;
         uint64_t m_SubmissionSerial = 0;
         SSimulationMetrics m_LastMetrics{};
 

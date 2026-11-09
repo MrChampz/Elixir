@@ -79,7 +79,8 @@ SGPUParticle StoreAttributes(SGPUParticle state, AttributeTable table, float age
     state.Size = table.Size.x;
     state.Velocity = table.Velocity.xyz;
     state.Age = age;
-    state.Transform = float4(table.Rotation.x, table.Scale.x, 0.0, 0.0);
+    // Development state survives ordinary particle updates. Spawning resets both words.
+    state.Transform.xy = float2(table.Rotation.x, table.Scale.x);
     state.Tangent = table.Tangent.xyz;
     state.GroupId = table.GroupId;
     state.Color = table.Color;
