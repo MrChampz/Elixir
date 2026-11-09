@@ -6,6 +6,9 @@ using namespace testing;
 #include <Engine/Graphics/Shader/ShaderLoader.h>
 #include <Engine/Graphics/Pipeline/Pipeline.h>
 #include <Graphics/Vulkan/VulkanBuffer.h>
+#include <Graphics/Vulkan/VulkanCommandBuffer.h>
+#include <Graphics/Vulkan/VulkanImage.h>
+#include <Engine/Graphics/Pipeline/PipelineBuilder.h>
 
 #include "VulkanTestContext.h"
 
@@ -48,6 +51,140 @@ TEST_F(VulkanBufferTest, DefaultCopyRetainsItsRegionUntilCommandsAreRecorded)
     };
     const auto completed = Context->RunRenderTaskAndWait(copy);
     ASSERT_TRUE(completed);
+}
+
+namespace
+{
+    /**
+     * @brief Make completed transfer writes visible to a mapped readback buffer.
+     * @param cmd Command buffer recording the readback copy.
+     */
+    void MakeCopiesVisibleToHost(const Ref<CommandBuffer>& cmd)
+    {
+        VkMemoryBarrier barrier{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+        vkCmdPipelineBarrier(
+            static_cast<VulkanCommandBuffer*>(cmd.get())->GetVulkanCommandBuffer(),
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_HOST_BIT,
+            0,
+            1,
+            &barrier,
+            0,
+            nullptr,
+            0,
+            nullptr
+        );
+    }
+}
+
+TEST_F(VulkanBufferTest, DefaultCopyRegionPreservesAllBytes)
+{
+    const auto run = [&]
+    {
+        const std::array<uint32_t, 4> expected{ 13, 29, 0x12345678, 0xabcdef01 };
+        const auto source = StagingBuffer::Create(Context, sizeof(expected), expected.data());
+        auto info = StagingBuffer::CreateBufferInfo(sizeof(expected), nullptr);
+        info.Usage = EBufferUsage::TransferDst;
+        const Ref<StagingBuffer> target = CreateRef<VulkanStagingBuffer>(Context, info);
+        const auto cmd = Context->GetUploadCommandBuffer();
+        cmd->Begin();
+        source->Copy(cmd, target);
+        MakeCopiesVisibleToHost(cmd);
+        cmd->Flush();
+        const auto data = static_cast<const uint32_t*>(target->Map());
+        ASSERT_NE(data, nullptr);
+        EXPECT_TRUE(std::equal(expected.begin(), expected.end(), data));
+        target->Unmap();
+    };
+    ASSERT_TRUE(Context->RunRenderTaskAndWait(run));
+}
+
+TEST_F(VulkanBufferTest, DefaultVertexOffsetsRenderForEveryBufferOverload)
+{
+    const auto run = [&]
+    {
+        ShaderLoader loader(Context);
+        const auto shader = loader.LoadShader(ELIXIR_TEST_SHADER_DIR, "VertexOffsets");
+        ASSERT_TRUE(shader);
+        PipelineBuilder builder;
+        builder.SetShader(shader);
+        builder.SetInputTopology(EPrimitiveTopology::TriangleList);
+        builder.SetPolygonMode(EPolygonMode::Fill);
+        builder.SetCullMode(ECullMode::None, EFrontFace::CounterClockwise);
+        builder.SetMultisamplingNone();
+        builder.DisableDepthTest();
+        builder.SetColorAttachmentFormat(EImageFormat::R8G8B8A8_UNORM);
+        builder.SetBufferLayout(BufferLayout({
+            { { { EDataType::Float4, "Color" } }, EInputRate::Instance }
+        }));
+        const auto pipeline = builder.Build(Context);
+        ASSERT_TRUE(pipeline);
+
+        const std::array<float, 4> color{ 1, 0, 0, 1 };
+        const auto vertex = VertexBuffer::Create(Context, sizeof(color), color.data());
+        const auto dynamic = DynamicVertexBuffer::Create(Context, sizeof(color), color.data());
+        const auto generic = Buffer::Create(
+            Context,
+            VertexBuffer::CreateBufferInfo(sizeof(color), color.data())
+        );
+        const SImageCreateInfo imageInfo{
+            .Width = 1,
+            .Height = 1,
+            .Type = EImageType::_2D,
+            .Format = EImageFormat::R8G8B8A8_UNORM,
+            .Usage = EImageUsage::ColorAttachment | EImageUsage::TransferSrc,
+            .InitialLayout = EImageLayout::General
+        };
+        const auto image = Image::Create(Context, imageInfo);
+        auto info = StagingBuffer::CreateBufferInfo(4, nullptr);
+        info.Usage = EBufferUsage::TransferDst;
+        const Ref<StagingBuffer> readback = CreateRef<VulkanStagingBuffer>(Context, info);
+
+        for (int overload = 0; overload < 3; ++overload)
+        {
+            const auto cmd = Context->GetUploadCommandBuffer();
+            const SRenderingInfo rendering{ .ColorAttachment = image, .RenderArea = { 1, 1 } };
+            cmd->Begin(rendering);
+            image->Transition(cmd, EImageLayout::General);
+            cmd->BeginRendering(rendering);
+            cmd->SetViewports({ { .Width = 1, .Height = 1, .MaxDepth = 1 } });
+            cmd->SetScissors({ { .Extent = { 1, 1 } } });
+            pipeline->Bind(cmd);
+            if (overload == 0) vertex->Bind(cmd);
+            else if (overload == 1) dynamic->Bind(cmd);
+            else
+            {
+                const Buffer* buffers[] = { generic.get() };
+                cmd->BindVertexBuffers(buffers);
+            }
+            cmd->Draw(3);
+            cmd->EndRendering();
+            image->Transition(cmd, EImageLayout::TransferSrc);
+            VkBufferImageCopy region{};
+            region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+            region.imageExtent = { 1, 1, 1 };
+            vkCmdCopyImageToBuffer(
+                static_cast<VulkanCommandBuffer*>(cmd.get())->GetVulkanCommandBuffer(),
+                TryToGetVulkanImageHandle(image.get()),
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                static_cast<const VulkanStagingBuffer*>(readback.get())->GetVulkanBuffer(),
+                1,
+                &region
+            );
+            MakeCopiesVisibleToHost(cmd);
+            cmd->Flush();
+            const auto pixels = static_cast<const uint8_t*>(readback->Map());
+            ASSERT_NE(pixels, nullptr);
+            EXPECT_EQ(pixels[0], 255) << "Buffer overload " << overload;
+            EXPECT_EQ(pixels[1], 0);
+            EXPECT_EQ(pixels[2], 0);
+            EXPECT_EQ(pixels[3], 255);
+            readback->Unmap();
+        }
+    };
+    ASSERT_TRUE(Context->RunRenderTaskAndWait(run));
 }
 
 TEST_F(VulkanBufferTest, GenericBuffersBindAsUniformAndStorageWithoutChangingDescriptorTypes)
@@ -355,7 +492,7 @@ TEST_F(VulkanBufferTest, VulkanUniformBuffer_CreationAndMapping)
     const auto buffer = UniformBuffer::Create(Context, size, data.data());
 
     EXPECT_EQ(buffer->GetSize(), size);
-    EXPECT_EQ(buffer->GetUsage(), EBufferUsage::UniformBuffer);
+    EXPECT_EQ(buffer->GetUsage(), EBufferUsage::UniformBuffer | EBufferUsage::TransferDst);
 
     void* mapped = buffer->Map();
     ASSERT_NE(mapped, nullptr);
