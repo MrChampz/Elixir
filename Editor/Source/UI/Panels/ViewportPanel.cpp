@@ -62,29 +62,45 @@ namespace
 Ref<GUI::Widget> ViewportPanel::Build()
 {
     const auto root = CreateRef<GUI::Canvas>();
+    m_Root = root;
     // Neutral placeholder - the real scene render will fill this in later, so there's no
     // stand-in landscape here, just the floating chrome (toolbar, panels, stats overlay).
     root->SetStyle(Styles().Transparent);
 
-    BuildToolbar(root);
-    BuildHierarchyPanel(root);
-    BuildInspectorPanel(root);
-    BuildStatsOverlay(root);
-
+    const auto overlays = CreateRef<GUI::Canvas>();
+    root->AddChild(overlays).SetAnchors(GUI::SAnchors::StretchAll());
+    BuildToolbar(overlays);
+    BuildHierarchyPanel(overlays);
+    BuildInspectorPanel(overlays);
+    BuildStatsOverlay(overlays);
     return root;
 }
 
-void ViewportPanel::OnUpdate(const Timestep frameTime)
+void ViewportPanel::UpdateOverlayAnimations(const Timestep frameTime)
 {
+    EditorPanel::UpdateOverlayAnimations(frameTime);
     if (m_HierarchyPanelAnimation) m_HierarchyPanelAnimation->Update(frameTime);
     if (m_HierarchyPanelToggleAnimation) m_HierarchyPanelToggleAnimation->Update(frameTime);
     if (m_InspectorPanelAnimation) m_InspectorPanelAnimation->Update(frameTime);
     if (m_InspectorPanelToggleAnimation) m_InspectorPanelToggleAnimation->Update(frameTime);
 }
 
+bool ViewportPanel::CanNavigateAt(const glm::vec2& point) const
+{
+    if (!m_Root || !m_Root->GetGeometry().Contains(point)) return false;
+    for (const auto& panel : {m_Toolbar, m_HierarchyPanel, m_InspectorPanel,
+        m_HierarchyPanelToggle, m_InspectorPanelToggle})
+    {
+        if (panel && panel->GetVisibility() != GUI::EVisibility::Collapsed &&
+            panel->GetGeometry().Contains(point - panel->GetRenderOffset())) return false;
+    }
+    return true;
+}
+
 void ViewportPanel::BuildToolbar(const Ref<GUI::Canvas>& root)
 {
     const auto panel = CreateRef<GUI::Overlay>();
+    m_Toolbar = panel;
     panel->SetStyle(Styles().Toolbar);
     panel->SetPadding(GUI::SMargin(4.0f));
 
@@ -177,6 +193,7 @@ void ViewportPanel::BuildToolbar(const Ref<GUI::Canvas>& root)
         .SetAnchors(GUI::SAnchors::TopCenter())
         .SetPosition({ 0.0f, 10.0f })
         .SetAlignment({ 0.5f, 0.0f });
+    RegisterOverlay(panel, {0, -12});
 }
 
 void ViewportPanel::BuildHierarchyPanel(const Ref<GUI::Canvas>& root)
@@ -244,10 +261,7 @@ void ViewportPanel::BuildHierarchyPanel(const Ref<GUI::Canvas>& root)
     struct SHierarchyItem { std::string Label; float Indent; };
     const SHierarchyItem items[] = {
         { "Directional Light", 0.0f },
-        { "Ground", 0.0f },
-        { "Player", 0.0f },
-        { "Mesh", 18.0f },
-        { "Terrain", 0.0f },
+        { "Sponza", 0.0f },
         { "Main Camera", 0.0f },
     };
 
@@ -287,7 +301,7 @@ void ViewportPanel::BuildHierarchyPanel(const Ref<GUI::Canvas>& root)
     panelToggleIcon->SetSize({ 14.0f, 14.0f });
     panelToggleIcon->SetStyle(Styles().SecondaryIcon);
     panelToggle->SetContent(panelToggleIcon);
-    panelToggle->OnClick([this] { SetHierarchyPanelOpen(true); });
+    panelToggle->OnClick([this] { if (!AreOverlaysHidden()) SetHierarchyPanelOpen(true); });
     m_HierarchyPanelAnimation = CreateScope<GUI::WidgetAnimation>(m_HierarchyPanel);
     m_HierarchyPanelToggleAnimation = CreateScope<GUI::WidgetAnimation>(m_HierarchyPanelToggle);
     SetHierarchyPanelOpen(true, false);
@@ -441,7 +455,7 @@ void ViewportPanel::BuildInspectorPanel(const Ref<GUI::Canvas>& root)
     panelToggleIcon->SetSize({ 13.0f, 13.0f });
     panelToggleIcon->SetStyle(Styles().SecondaryIcon);
     panelToggle->SetContent(panelToggleIcon);
-    panelToggle->OnClick([this] { SetInspectorPanelOpen(true); });
+    panelToggle->OnClick([this] { if (!AreOverlaysHidden()) SetInspectorPanelOpen(true); });
     m_InspectorPanelAnimation = CreateScope<GUI::WidgetAnimation>(m_InspectorPanel);
     m_InspectorPanelToggleAnimation = CreateScope<GUI::WidgetAnimation>(m_InspectorPanelToggle);
     SetInspectorPanelOpen(true, false);
@@ -452,6 +466,7 @@ void ViewportPanel::BuildStatsOverlay(const Ref<GUI::Canvas>& root)
     const auto panel = CreateRef<GUI::Overlay>();
     panel->SetStyle(Styles().StatsOverlay);
     panel->SetPadding({ 10.0f, 6.0f });
+    RegisterOverlay(panel, {0, 12});
 
     root->AddChild(panel)
         .SetAnchors(GUI::SAnchors::BottomLeft())
@@ -511,6 +526,7 @@ void ViewportPanel::SetSelectedHierarchyRow(const int index)
 
 void ViewportPanel::SetHierarchyPanelOpen(const bool open, const bool animate)
 {
+    m_HierarchyOpen = open;
     if (animate)
     {
         AnimatePanel(m_HierarchyPanel, *m_HierarchyPanelAnimation, open, { -12.0f, 0.0f });
@@ -531,6 +547,7 @@ void ViewportPanel::SetHierarchyPanelOpen(const bool open, const bool animate)
 
 void ViewportPanel::SetInspectorPanelOpen(const bool open, const bool animate)
 {
+    m_InspectorOpen = open;
     if (animate)
     {
         AnimatePanel(m_InspectorPanel, *m_InspectorPanelAnimation, open, { 12.0f, 0.0f });
@@ -556,21 +573,23 @@ void ViewportPanel::AnimatePanel(
     const glm::vec2& offset
 )
 {
-    panel->SetVisibility(GUI::EVisibility::HitTestInvisible);
-    animation.ClearTracks();
-    animation.AddTrack(
-        MakeCurve(open ? 0.0f : 1.0f, open ? 1.0f : 0.0f, Styles().PanelTransitionDelay, Styles().PanelTransitionDuration),
-        [](GUI::Widget& widget, const float value) { widget.SetOpacity(value); }
-    );
-    animation.AddTrack(
-        MakeCurve(open ? offset : glm::vec2{}, open ? glm::vec2{} : offset, Styles().PanelTransitionDelay, Styles().PanelTransitionDuration),
-        [](GUI::Widget& widget, const glm::vec2& value) { widget.SetRenderOffset(value); }
-    );
-    animation.OnFinished([panel, open]
+    AnimateOverlay(panel, animation, open ? GUI::EVisibility::Visible : GUI::EVisibility::Collapsed, offset);
+}
+
+void ViewportPanel::OnOverlaysHidden(const bool hidden)
+{
+    if (hidden)
     {
-        panel->SetVisibility(open ? GUI::EVisibility::Visible : GUI::EVisibility::Collapsed);
-    });
-    animation.Play();
+        m_HierarchyWasOpen = m_HierarchyOpen;
+        m_InspectorWasOpen = m_InspectorOpen;
+        if (m_HierarchyWasOpen) SetHierarchyPanelOpen(false);
+        if (m_InspectorWasOpen) SetInspectorPanelOpen(false);
+    }
+    else
+    {
+        if (m_HierarchyWasOpen) SetHierarchyPanelOpen(true);
+        if (m_InspectorWasOpen) SetInspectorPanelOpen(true);
+    }
 }
 
 void ViewportPanel::AnimatePanelToggle(
@@ -579,11 +598,12 @@ void ViewportPanel::AnimatePanelToggle(
     const bool panelOpen
 )
 {
+    const float opacity = toggle->GetVisibility() == GUI::EVisibility::Collapsed ? 0.0f : toggle->GetOpacity();
     toggle->SetVisibility(GUI::EVisibility::HitTestInvisible);
     animation.ClearTracks();
     const float delay = panelOpen ? 0.0f : Styles().PanelToggleShowDelay;
     animation.AddTrack(
-        MakeCurve(panelOpen ? 1.0f : 0.0f, panelOpen ? 0.0f : 1.0f, delay, Styles().PanelToggleDuration),
+        MakeCurve(opacity, panelOpen ? 0.0f : 1.0f, delay, Styles().PanelToggleDuration),
         [](GUI::Widget& widget, const float value) { widget.SetOpacity(value); }
     );
     animation.OnFinished([toggle, panelOpen]

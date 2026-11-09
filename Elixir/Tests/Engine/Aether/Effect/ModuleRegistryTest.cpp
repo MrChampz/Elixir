@@ -6,12 +6,15 @@
 #include <limits>
 
 #include <Engine/Aether/Core/Operand.h>
+#include "../TestInstanceRegistry.h"
 #include <Engine/Aether/Effect/Effect.h>
+#include <Engine/Aether/Rendering/StrandRenderConfig.h>
 #include <Engine/Aether/Effect/ModuleRegistry.h>
 #include <Engine/Aether/Core/Operations/RandomRange.h>
 #include <Engine/Aether/Core/Operations/SampleCurve.h>
 #include <Engine/Aether/Modules/ApplyAngularVelocity.h>
 #include <Engine/Aether/Modules/ApplyGravity.h>
+#include <Engine/Aether/Modules/DistanceConstraint.h>
 #include <Engine/Aether/Modules/ApplyLinearDrag.h>
 #include <Engine/Aether/Modules/ApplyVortex.h>
 #include <Engine/Aether/Modules/ColorOverLife.h>
@@ -24,8 +27,8 @@
 #include <Engine/Aether/Modules/SetPositionDisk.h>
 #include <Engine/Aether/Modules/SetPositionOnCircle.h>
 #include <Engine/Aether/Modules/SetPositionVortexRibbonPath.h>
-#include <Engine/Aether/Modules/SetRibbonId.h>
-#include <Engine/Aether/Modules/SetRibbonIdFromSpawnOrder.h>
+#include <Engine/Aether/Modules/SetGroupId.h>
+#include <Engine/Aether/Modules/SetGroupIdFromSpawnOrder.h>
 #include <Engine/Aether/Modules/SetRotation.h>
 #include <Engine/Aether/Modules/SetScale.h>
 #include <Engine/Aether/Modules/SetSize.h>
@@ -176,22 +179,22 @@ TEST(ModuleRegistryTest, CreatesSetPositionVortexRibbonPathFromJson)
     EXPECT_NE(dynamic_cast<const SetPositionVortexRibbonPath*>(module.get()), nullptr);
 }
 
-TEST(ModuleRegistryTest, CreatesSetRibbonIdFromJson)
+TEST(ModuleRegistryTest, CreatesSetGroupIdFromJson)
 {
     Effect::ModuleParseContext context;
-    const auto module = CreateRegistered("SetRibbonId", R"({"ribbonId":3})", context);
+    const auto module = CreateRegistered("SetGroupId", R"({"groupId":3})", context);
     ASSERT_FALSE(context.Failed()) << context.GetError();
     ASSERT_TRUE(module);
-    EXPECT_NE(dynamic_cast<const SetRibbonId*>(module.get()), nullptr);
+    EXPECT_NE(dynamic_cast<const SetGroupId*>(module.get()), nullptr);
 }
 
-TEST(ModuleRegistryTest, CreatesSetRibbonIdFromSpawnOrderFromJson)
+TEST(ModuleRegistryTest, CreatesSetGroupIdFromSpawnOrderFromJson)
 {
     Effect::ModuleParseContext context;
-    const auto module = CreateRegistered("SetRibbonIdFromSpawnOrder", R"({"ribbonCount":0,"firstRibbonId":4})", context);
+    const auto module = CreateRegistered("SetGroupIdFromSpawnOrder", R"({"groupCount":0,"firstGroupId":4})", context);
     ASSERT_FALSE(context.Failed()) << context.GetError();
     ASSERT_TRUE(module);
-    EXPECT_NE(dynamic_cast<const SetRibbonIdFromSpawnOrder*>(module.get()), nullptr);
+    EXPECT_NE(dynamic_cast<const SetGroupIdFromSpawnOrder*>(module.get()), nullptr);
 }
 
 TEST(ModuleRegistryTest, CreatesSizeOverLifeFromJson)
@@ -334,7 +337,7 @@ TEST(ModuleRegistryTest, PreservesParameterBindingsAndOptionalDefaults)
 TEST(ModuleRegistryTest, RejectsInvalidFieldsAndPreservesTheFirstError)
 {
     const std::array cases{
-        std::pair{ "SetRibbonId", R"({"ribbonId":4294967296})" },
+        std::pair{ "SetGroupId", R"({"groupId":4294967296})" },
         std::pair{ "SetPositionDisk", R"({"center":[1,2],"radius":4})" },
         std::pair{ "SetPositionDisk", R"({"radius":4})" },
         std::pair{ "SetLifetime", R"({"min":true,"max":false})" },
@@ -412,7 +415,7 @@ TEST(ModuleRegistryTest, UnknownTypesReturnNullWithoutConsumingFields)
 TEST(ModuleRegistryTest, LoadsExistingEffectAssets)
 {
     const auto root = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path().parent_path().parent_path().parent_path();
-    for (const auto* asset : { "FireAndFireworks.json", "RainStorm.json", "RibbonGarden.json", "RibbonVortex.json" })
+    for (const auto* asset : { "FireAndFireworks.json", "RainStorm.json", "RibbonGarden.json", "RibbonVortex.json", "GPUStrands.json" })
     {
         SCOPED_TRACE(asset);
         const auto system = Elixir::Aether::Effect::LoadEffectFile(root / "Assets" / "VFX" / asset);
@@ -479,4 +482,130 @@ TEST(ModuleRegistryTest, CreatesAndCompilesModulesRegisteredOutsideTheEngine)
     module->Compile(compileContext);
     ASSERT_EQ(operations.size(), 1u);
     EXPECT_FLOAT_EQ(std::bit_cast<float>(program.Constants[program.Operands[0] & Core::OperandIndexMask]), 7.0f);
+}
+
+TEST(ModuleRegistryTest, LoadsStrandConfigurationAndRejectsInvalidRanges)
+{
+    std::string error;
+    const auto system = Effect::ParseEffect(R"({"name":"Strands","emitters":[
+        {"name":"Root","renderMode":"Strand","simulationSpace":"Local","maxParticles":4,"spawnRate":0,
+         "updateModules":[{"type":"ApplyLinearDrag","drag":1},
+                          {"type":"DistanceConstraint","maxPoints":32}],
+         "solver":{"iterations":12},"strand":{"radialSegments":6},
+         "material":{"blendMode":"Opaque"}}]})", &error);
+    ASSERT_TRUE(system) << error;
+    const auto& emitter = *system->GetEmitters().front();
+    EXPECT_EQ(emitter.GetRenderMode(), EParticleRenderMode::Strand);
+    EXPECT_EQ(emitter.GetSimulationSpace(), EParticleSimulationSpace::Local);
+    EXPECT_EQ(emitter.GetSolverConfig().Iterations, 12u);
+    Effect::ModuleParseContext context;
+    const auto constraint = CreateRegistered(
+        "DistanceConstraint",
+        R"({"maxPoints":32,"stiffness":0.5})",
+        context
+    );
+    ASSERT_TRUE(constraint);
+    EXPECT_EQ(constraint->GetPhase(), EModulePhase::Update);
+    const auto* render = dynamic_cast<const Aether::Rendering::SStrandRenderConfig*>(
+        emitter.GetRenderConfig().get()
+    );
+    ASSERT_NE(render, nullptr);
+    EXPECT_EQ(render->RadialSegments, 6u);
+    ASSERT_TRUE(emitter.GetMaterialDescription());
+    EXPECT_EQ(emitter.GetMaterialDescription()->BlendMode, Elixir::Materials::EMaterialBlendMode::Opaque);
+    for (const auto* fields : {
+        R"("solver":{"iterations":0})",
+        R"("solver":{"iterations":17})",
+        R"("updateModules":[{"type":"DistanceConstraint","maxPoints":1}])",
+        R"("updateModules":[{"type":"DistanceConstraint","maxPoints":97}])",
+        R"("updateModules":[{"type":"DistanceConstraint","orderStep":0}])",
+        R"("updateModules":[{"type":"DistanceConstraint","segmentLength":0}])",
+        R"("updateModules":[{"type":"DistanceConstraint","stiffness":-1}])",
+        R"("updateModules":[{"type":"DistanceConstraint","pinFirstParticle":0}])",
+        R"("spawnModules":[{"type":"DistanceConstraint"}])",
+        R"("strand":{"orderStep":0})",
+        R"("strand":{"widthScale":0})",
+        R"("strand":{"radialSegments":2})",
+        R"("strand":{"subdivisions":9})"
+    })
+    {
+        SCOPED_TRACE(fields);
+        const std::string json = std::string(
+            R"({"name":"Bad","emitters":[{"name":"Root","maxParticles":1,"spawnRate":0,)"
+        ) + fields + "}]}";
+        EXPECT_FALSE(Effect::ParseEffect(json, &error));
+        EXPECT_FALSE(error.empty());
+    }
+}
+
+TEST(ModuleRegistryTest, LoadsLifetimeDeathPolicyAndRejectsNonBooleanValues)
+{
+    std::string error;
+    const auto system = Effect::ParseEffect(R"({"name":"State","emitters":[
+        {"name":"Default","maxParticles":1,"spawnRate":0},
+        {"name":"Persistent","maxParticles":1,"spawnRate":0,"particleState":{"killOnLifetimeExpired":false}},
+        {"name":"Finite","maxParticles":1,"spawnRate":0,"particleState":{"killOnLifetimeExpired":true}}]})", &error);
+    ASSERT_TRUE(system) << error;
+    ASSERT_EQ(system->GetEmitters().size(), 3);
+    EXPECT_TRUE(system->GetEmitters()[0]->ShouldKillOnLifetimeExpired());
+    EXPECT_FALSE(system->GetEmitters()[1]->ShouldKillOnLifetimeExpired());
+    EXPECT_TRUE(system->GetEmitters()[2]->ShouldKillOnLifetimeExpired());
+    for (const auto* state : {"false", "null", R"({"killOnLifetimeExpired":0})", R"({"killOnLifetimeExpired":"false"})"})
+    {
+        SCOPED_TRACE(state);
+        const std::string json = std::string(R"({"name":"Bad","emitters":[{"name":"Root","maxParticles":1,"spawnRate":0,"particleState":)") + state + "}]}";
+        EXPECT_FALSE(Effect::ParseEffect(json, &error));
+        EXPECT_FALSE(error.empty());
+    }
+}
+
+TEST(ModuleRegistryTest, ValidatesCurlParametersAndBindings)
+{
+    Effect::ModuleParseContext context;
+    const auto gravity = CreateRegistered("ApplyGravity", R"({"gravity":[0,-1,0]})", context);
+    ASSERT_TRUE(gravity);
+    const auto curl = CreateRegistered(
+        "CurlNoiseForce",
+        R"({"strength":"$Strength","frequency":2.2,
+            "scrollVelocity":[0.1,0.2,0.3],"seed":"$Seed"})",
+        context
+    );
+    ASSERT_TRUE(curl) << context.GetError();
+    for (const auto& entry : {
+        std::pair{"CurlNoiseForce", R"({"frequency":0})"},
+        std::pair{"CurlNoiseForce", R"({"strength":-1})"}
+    })
+    {
+        Effect::ModuleParseContext invalid;
+        EXPECT_FALSE(CreateRegistered(entry.first, entry.second, invalid));
+        EXPECT_TRUE(invalid.Failed());
+    }
+
+}
+
+TEST(ModuleRegistryTest, CompilesCurlSeedBindingFromJSON)
+{
+    const auto system = Effect::ParseEffect(R"({
+        "name":"Bound curl seed",
+        "parameters":{"Seed":17},
+        "emitters":[{
+            "name":"Particles", "maxParticles":1, "spawnRate":0,
+            "updateModules":[{"type":"CurlNoiseForce", "seed":"$Seed"}]
+        }]
+    })");
+    ASSERT_TRUE(system);
+    TestInstanceRegistry runtime;
+    const auto instance = runtime.CreateRegisteredInstance(system);
+    ASSERT_TRUE(instance);
+    Elixir::Aether::Rendering::FrameSubmission submission;
+    ASSERT_TRUE(submission.Submit(*instance));
+    const auto& compiled = submission.GetRenderProxies().front()->GetCompiledSystem();
+    const auto& program = compiled.ModuleData;
+    ASSERT_EQ(program.Operations.size(), 11u);
+    ASSERT_EQ(program.Operations[7].Type, Core::EOperationType::SampleCurlNoise);
+    const auto reference = program.Operands.at(program.Operations[7].OperandOffset + 1);
+    EXPECT_EQ(Core::GetOperandSource(reference), Core::EOperandSource::Parameter);
+    EXPECT_EQ(Core::GetOperandFormat(reference), Core::EOperandFormat::Float);
+    ASSERT_EQ(compiled.Parameters.size(), 1u);
+    EXPECT_FLOAT_EQ(compiled.Parameters[0].Value.x, 17.0f);
 }

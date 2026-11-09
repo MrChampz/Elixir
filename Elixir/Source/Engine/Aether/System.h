@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+
 #include <Engine/Aether/Emitter.h>
 #include <Engine/Aether/Core/ParameterStore.h>
 #include <Engine/Aether/Core/CompiledParameter.h>
@@ -144,6 +146,14 @@ namespace Elixir::Aether
         Emitter* FindEmitter(std::string_view name) const;
 
         /**
+         * @brief Exchanges authoring data while preserving both systems' identities and
+         * compilation revisions.
+         * @pre Serialize this call with compilation and recompile before publishing the
+         * new definition.
+         */
+        void Swap(System& other);
+
+        /**
          * @brief Returns the UUID of this effect system.
          * @return The system UUID.
          */
@@ -196,8 +206,11 @@ namespace Elixir::Aether
          */
         std::optional<SParameter> GetParameterDefault(std::string_view name) const;
 
-        /** @brief Compile the authored system into immutable runtime data. */
-        SCompiledSystem Compile() const;
+        /**
+         * @brief Compile the authored system into immutable runtime data.
+         * @return Compiled data, or no value if parameter or module compilation fails.
+         */
+        std::optional<SCompiledSystem> Compile() const;
 
         UUID m_UUID;
         mutable uint32_t m_CompilationRevision = 0;

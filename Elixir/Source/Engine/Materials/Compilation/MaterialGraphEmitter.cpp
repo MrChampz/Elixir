@@ -31,6 +31,11 @@ namespace Elixir::Materials::Compilation
                 case EMaterialChannel::ClearCoat:               return "ClearCoat";
                 case EMaterialChannel::ClearCoatRoughness:      return "ClearCoatRoughness";
                 case EMaterialChannel::ClearCoatBottomNormal:   return "ClearCoatBottomNormal";
+                case EMaterialChannel::Transmission:            return "Transmission";
+                case EMaterialChannel::IOR:                     return "IOR";
+                case EMaterialChannel::Thickness:               return "Thickness";
+                case EMaterialChannel::AttenuationDistance:     return "AttenuationDistance";
+                case EMaterialChannel::AttenuationColor:        return "AttenuationColor";
                 case EMaterialChannel::WorldPositionOffset:     return "WorldPositionOffset";
             }
 
@@ -50,7 +55,11 @@ namespace Elixir::Materials::Compilation
                                   channel == EMaterialChannel::Cloth ||
                                   channel == EMaterialChannel::FuzzRoughness ||
                                   channel == EMaterialChannel::ClearCoat ||
-                                  channel == EMaterialChannel::ClearCoatRoughness;
+                                  channel == EMaterialChannel::ClearCoatRoughness ||
+                                  channel == EMaterialChannel::Transmission ||
+                                  channel == EMaterialChannel::IOR ||
+                                  channel == EMaterialChannel::Thickness ||
+                                  channel == EMaterialChannel::AttenuationDistance;
 
             if (isScalar)
             {

@@ -13,7 +13,7 @@
 #include <Engine/Aether/Core/Operations/SetPositionOnCircle.h>
 #include <Engine/Aether/Core/Operations/SetPositionCircularPath.h>
 #include <Engine/Aether/Core/Operations/SetPositionVortexRibbonPath.h>
-#include <Engine/Aether/Core/Operations/SetRibbonIdFromSpawnOrder.h>
+#include <Engine/Aether/Core/Operations/SetGroupIdFromSpawnOrder.h>
 #include <Engine/Aether/Core/Operations/SampleCurve.h>
 #include <Engine/Aether/Core/Operations/SampleColorCurve.h>
 #include <Engine/Aether/Core/Operations/Add.h>
@@ -21,6 +21,7 @@
 #include <Engine/Aether/Core/Operations/Clamp.h>
 #include <Engine/Aether/Core/Operations/CopyFromAttribute.h>
 #include <Engine/Aether/Core/Operations/ApplyVortex.h>
+#include <Engine/Aether/Core/Operations/SampleCurlNoise.h>
 
 namespace Elixir::Aether::Core
 {
@@ -42,7 +43,7 @@ namespace Elixir::Aether::Core
         static const SetPositionOnCircle setPositionOnCircle;
         static const SetPositionCircularPath setPositionCircularPath;
         static const SetPositionVortexRibbonPath setPositionVortexRibbonPath;
-        static const SetRibbonIdFromSpawnOrder setRibbonIdFromSpawnOrder;
+        static const SetGroupIdFromSpawnOrder setGroupIdFromSpawnOrder;
         static const SampleCurve sampleCurve;
         static const SampleColorCurve sampleColorCurve;
         static const Add add;
@@ -50,6 +51,7 @@ namespace Elixir::Aether::Core
         static const Clamp clamp;
         static const CopyFromAttribute copyFromAttribute;
         static const ApplyVortex applyVortex;
+        static const SampleCurlNoise sampleCurlNoise;
 
         static const Operation* const operations[]{
             &setLiteral,
@@ -65,14 +67,15 @@ namespace Elixir::Aether::Core
             &setPositionOnCircle,
             &setPositionCircularPath,
             &setPositionVortexRibbonPath,
-            &setRibbonIdFromSpawnOrder,
+            &setGroupIdFromSpawnOrder,
             &sampleCurve,
             &sampleColorCurve,
             &add,
             &mul,
             &clamp,
             &copyFromAttribute,
-            &applyVortex
+            &applyVortex,
+            &sampleCurlNoise
         };
 
         return operations;

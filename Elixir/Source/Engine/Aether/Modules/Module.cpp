@@ -21,87 +21,116 @@ namespace Elixir::Aether::Modules
         m_EmitterName(emitterName),
         m_GravityScale(gravityScale) {}
 
-    uint32_t ModuleCompileContext::FindParameter(const std::string_view name) const
-    {
-        if (name.empty()) return UINT32_MAX;
-        return FindScopedParameterIndex(
-            m_Parameters,
-            std::string(m_EmitterName),
-            std::string(name)
-        );
-    }
 
-    uint32_t ModuleCompileContext::FindCurve(const std::string_view name) const
-    {
-        if (name.empty()) return UINT32_MAX;
-        return FindCurveParameterIndex(
-            m_Parameters,
-            std::string(m_EmitterName),
-            std::string(name)
-        );
-    }
-
-    SGPUOperand ModuleCompileContext::Literal(
-        const EOperandInput input,
-        std::span<const uint32_t> words,
-        const std::string_view parameter
+    void ModuleCompileContext::Emit(
+        const EOperationType type,
+        const EParticleAttribute target,
+        const std::initializer_list<SGPUOperand> operands
     )
     {
-        const auto index = FindParameter(parameter);
-        if (index != UINT32_MAX)
+        if (!m_Valid) return;
+
+        const auto* operation = FindOperation(type);
+        if (!operation)
         {
-            const auto declared = m_Parameters[index].Type;
-
-            if (!IsParameterOperandType(declared, input))
-            {
-                EE_CORE_ERROR("Particle parameter type does not match its binding.");
-                return { static_cast<EOperandInput>(UINT8_MAX), 0 };
-            }
-
-            const auto& definition = m_Parameters[index];
-            const auto count = GetParameterWordCount(definition.Type);
-
-            if (std::size_t(definition.WordOffset) + count > OperandIndexMask)
-            {
-                EE_CORE_ERROR("Particle parameter offset exceeds the operand word range.");
-                return { static_cast<EOperandInput>(UINT8_MAX), 0 };
-            }
-
-            return {
-                input,
-                EncodeOperandReference(
-                    EOperandSource::Parameter,
-                    GetParameterOperandFormat(declared),
-                    definition.WordOffset
-                )
-            };
+            EE_CORE_ERROR("Unknown particle operation.");
+            m_Valid = false;
+            return;
         }
 
-        const auto format = GetOperandTypeFormat(input);
+        const auto inputs = operation->GetDefinition().Inputs;
+        using enum EOperandInput;
 
-        std::array<uint32_t, 5> key{ uint32_t(input) };
-        std::ranges::copy(words, key.begin() + 1);
-
-        if (const auto found = m_Literals.find(key); found != m_Literals.end())
-            return {
-                input,
-                EncodeOperandReference(EOperandSource::Constant, format, found->second)
-            };
-
-        if (m_ModuleData.Constants.size() + words.size() > OperandIndexMask)
+        if (operands.size() > UINT32_MAX)
         {
-            EE_CORE_ERROR("Particle constant pool exceeds 26 bits.");
-            return { static_cast<EOperandInput>(UINT8_MAX), 0 };
+            EE_CORE_ERROR("Particle operation exceeds the 32-bit argument-count range.");
+            m_Valid = false;
+            return;
         }
 
-        const auto offset = (uint32_t)m_ModuleData.Constants.size();
-        m_ModuleData.Constants.insert(m_ModuleData.Constants.end(), words.begin(), words.end());
-        m_Literals.emplace(std::move(key), offset);
+        if (inputs.size() != operands.size())
+        {
+            EE_CORE_ERROR("Particle operation argument count does not match its definition.");
+            m_Valid = false;
+            return;
+        }
 
-        return {
-            input,
-            EncodeOperandReference(EOperandSource::Constant, format, offset)
+        if (!operation->IsValidTarget(target))
+        {
+            EE_CORE_ERROR("Invalid destination for the particle operation.");
+            m_Valid = false;
+            return;
+        }
+
+        const auto targetType = GetAttributeOperandType(target);
+        const bool isTempTarget = target >= EParticleAttribute::Temp0 &&
+            target <= EParticleAttribute::Temp3;
+
+        const SOperandValidationContext validationContext{
+            m_ModuleData.Constants,
+            m_Parameters
         };
+
+        size_t i = 0;
+        for (const auto& operand : operands)
+        {
+            const auto expected = inputs[i++];
+            const auto actual = operand.Type;
+
+            const auto isNumeric = actual == Float || actual == Float3 || actual == Float4;
+            const auto isValidTempTarget = isTempTarget && isNumeric;
+            const auto matchesTarget = actual == targetType || isValidTempTarget;
+            const bool matches = expected == actual || (expected == Target && matchesTarget);
+
+            if (!matches)
+            {
+                EE_CORE_ERROR("Particle operation argument type does not match its definition.");
+                m_Valid = false;
+                return;
+            }
+
+            if (!IsValidOperand(operand, validationContext))
+            {
+                EE_CORE_ERROR("Particle operand reference does not match its source.");
+                m_Valid = false;
+                return;
+            }
+        }
+
+        if (m_ModuleData.Operands.size() + operands.size() > UINT32_MAX)
+        {
+            EE_CORE_ERROR("Particle operand table exceeds uint32 range.");
+            m_Valid = false;
+            return;
+        }
+
+        const auto offset = uint32_t(m_ModuleData.Operands.size());
+
+        for (const auto& operand : operands)
+            m_ModuleData.Operands.push_back(operand.Reference);
+
+        m_ModuleData.Operations.push_back({
+            type,
+            target,
+            offset,
+            uint32_t(operands.size())
+        });
+    }
+
+    void ModuleCompileContext::EmitDistanceConstraint(
+        const SDistanceConstraint& constraint
+    )
+    {
+        if (!m_Valid) return;
+
+        if (!constraint.IsValid())
+        {
+            EE_CORE_ERROR("Invalid distance constraint in emitter '{}'.", m_EmitterName);
+            m_Valid = false;
+            return;
+        }
+
+        m_ModuleData.Constraints.push_back(constraint);
     }
 
     SGPUOperand ModuleCompileContext::Scalar(const float value, const std::string_view parameter)
@@ -191,6 +220,7 @@ namespace Elixir::Aether::Modules
         if (index != UINT32_MAX && index >= OperandIndexMask)
         {
             EE_CORE_ERROR("Particle curve index collides with the missing-curve sentinel.");
+            m_Valid = false;
             return { static_cast<EOperandInput>(UINT8_MAX), 0 };
         }
 
@@ -204,90 +234,100 @@ namespace Elixir::Aether::Modules
         };
     }
 
-    void ModuleCompileContext::Emit(
-        const EOperationType type,
-        const EParticleAttribute target,
-        const std::initializer_list<SGPUOperand> operands
+    uint32_t ModuleCompileContext::FindParameter(const std::string_view name) const
+    {
+        if (name.empty()) return UINT32_MAX;
+        return FindScopedParameterIndex(
+            m_Parameters,
+            std::string(m_EmitterName),
+            std::string(name)
+        );
+    }
+
+    uint32_t ModuleCompileContext::FindCurve(const std::string_view name) const
+    {
+        if (name.empty()) return UINT32_MAX;
+        return FindCurveParameterIndex(
+            m_Parameters,
+            std::string(m_EmitterName),
+            std::string(name)
+        );
+    }
+
+    SGPUOperand ModuleCompileContext::Literal(
+        const EOperandInput input,
+        std::span<const uint32_t> words,
+        const std::string_view parameter
     )
     {
-        const auto* operation = FindOperation(type);
-        if (!operation)
+        if (!m_Valid)
+            return { static_cast<EOperandInput>(UINT8_MAX), 0 };
+
+        const auto index = FindParameter(parameter);
+        if (index != UINT32_MAX)
         {
-            EE_CORE_ERROR("Unknown particle operation.");
-            return;
+            const auto declared = m_Parameters[index].Type;
+
+            if (!IsParameterOperandType(declared, input))
+            {
+                EE_CORE_ERROR("Particle parameter type does not match its binding.");
+                m_Valid = false;
+                return { static_cast<EOperandInput>(UINT8_MAX), 0 };
+            }
+
+            const auto& definition = m_Parameters[index];
+            if (input == EOperandInput::UInt && declared == EParameterType::Float &&
+                !IsValidUIntScalar(definition.Value.x))
+            {
+                EE_CORE_ERROR("Unsigned particle bindings require an integer in [0, 2^32).");
+                m_Valid = false;
+                return { static_cast<EOperandInput>(UINT8_MAX), 0 };
+            }
+            const auto count = GetParameterWordCount(definition.Type);
+
+            if (std::size_t(definition.WordOffset) + count > OperandIndexMask)
+            {
+                EE_CORE_ERROR("Particle parameter offset exceeds the operand word range.");
+                m_Valid = false;
+                return { static_cast<EOperandInput>(UINT8_MAX), 0 };
+            }
+
+            return {
+                input,
+                EncodeOperandReference(
+                    EOperandSource::Parameter,
+                    GetParameterOperandFormat(declared),
+                    definition.WordOffset
+                )
+            };
         }
 
-        const auto inputs = operation->GetDefinition().Inputs;
-        using enum EOperandInput;
+        const auto format = GetOperandTypeFormat(input);
 
-        if (operands.size() > UINT32_MAX)
+        std::array<uint32_t, 5> key{ uint32_t(input) };
+        std::ranges::copy(words, key.begin() + 1);
+
+        if (const auto found = m_Literals.find(key); found != m_Literals.end())
+            return {
+                input,
+                EncodeOperandReference(EOperandSource::Constant, format, found->second)
+            };
+
+        if (m_ModuleData.Constants.size() + words.size() > OperandIndexMask)
         {
-            EE_CORE_ERROR("Particle operation exceeds the 32-bit argument-count range.");
-            return;
+            EE_CORE_ERROR("Particle constant pool exceeds 26 bits.");
+            m_Valid = false;
+            return { static_cast<EOperandInput>(UINT8_MAX), 0 };
         }
 
-        if (inputs.size() != operands.size())
-        {
-            EE_CORE_ERROR("Particle operation argument count does not match its definition.");
-            return;
-        }
+        const auto offset = (uint32_t)m_ModuleData.Constants.size();
+        m_ModuleData.Constants.insert(m_ModuleData.Constants.end(), words.begin(), words.end());
+        m_Literals.emplace(std::move(key), offset);
 
-        if (!operation->IsValidTarget(target))
-        {
-            EE_CORE_ERROR("Invalid destination for the particle operation.");
-            return;
-        }
-
-        const auto targetType = GetAttributeOperandType(target);
-        const bool isTempTarget = target >= EParticleAttribute::Temp0 &&
-            target <= EParticleAttribute::Temp3;
-
-        const SOperandValidationContext validationContext{
-            m_ModuleData.Constants,
-            m_Parameters
+        return {
+            input,
+            EncodeOperandReference(EOperandSource::Constant, format, offset)
         };
-
-        size_t i = 0;
-        for (const auto& operand : operands)
-        {
-            const auto expected = inputs[i++];
-            const auto actual = operand.Type;
-
-            const auto isNumeric = actual == Float || actual == Float3 || actual == Float4;
-            const auto isValidTempTarget = isTempTarget && isNumeric;
-            const auto matchesTarget = actual == targetType || isValidTempTarget;
-            const bool matches = expected == actual || (expected == Target && matchesTarget);
-
-            if (!matches)
-            {
-                EE_CORE_ERROR("Particle operation argument type does not match its definition.");
-                return;
-            }
-
-            if (!IsValidOperand(operand, validationContext))
-            {
-                EE_CORE_ERROR("Particle operand reference does not match its source.");
-                return;
-            }
-        }
-
-        if (m_ModuleData.Operands.size() + operands.size() > UINT32_MAX)
-        {
-            EE_CORE_ERROR("Particle operand table exceeds uint32 range.");
-            return;
-        }
-
-        const auto offset = uint32_t(m_ModuleData.Operands.size());
-
-        for (const auto& operand : operands)
-            m_ModuleData.Operands.push_back(operand.Reference);
-
-        m_ModuleData.Operations.push_back({
-            type,
-            target,
-            offset,
-            uint32_t(operands.size())
-        });
     }
 
     /* Module */
@@ -295,4 +335,5 @@ namespace Elixir::Aether::Modules
     Module::Module(const EModulePhase phase) : m_Phase(phase) {}
 
     Module::~Module() = default;
+
 }

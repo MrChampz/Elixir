@@ -2,6 +2,7 @@
 
 #include <Engine/GUI/Renderer/RenderBatch.h>
 #include <Engine/GUI/Renderer/RenderPass.h>
+#include <Engine/GUI/Renderer/FrameGeometrySlots.h>
 #include <Engine/Graphics/Shader/ShaderLoader.h>
 
 namespace Elixir::GUI
@@ -40,7 +41,7 @@ namespace Elixir::GUI
       private:
         void InitRenderPass(const ShaderLoader* shaderLoader);
         void BindShaderParameters() const;
-        void EnsureQuadBufferCapacity(size_t requiredCapacity);
+
 
         void BuildTextGeometry(const SDrawCommand& cmd);
         void BuildTextureGeometry(const SDrawCommand& cmd);
@@ -53,19 +54,29 @@ namespace Elixir::GUI
             SColor Color;
             uint32_t AtlasIndex = 0;
             glm::vec2 UnitRange;
-            SRect ScissorRect;
+            SRect ClipRect;
+            SRect RoundedClipRect;
+            glm::vec4 ClipCornerRadius;
         };
 
         std::vector<SQuad> m_Quads;
 
+        struct SGeometryBuffer
+        {
+            Ref<DynamicVertexBuffer> Buffer;
+            size_t Capacity = 0;
+        };
+
+        FrameGeometrySlots<SGeometryBuffer> m_GeometrySlots;
+        BufferLayout m_BufferLayout;
+
         Ref<Shader> m_Shader;
         Ref<GraphicsPipeline> m_Pipeline;
-        Ref<DynamicVertexBuffer> m_QuadBuffer;
-        std::vector<Ref<DynamicVertexBuffer>> m_RetiredQuadBuffers;
+
+        bool m_CanRender = false;
 
         float m_DPIScale;
         Ref<UniformBuffer> m_PerFrameConstantBuffer;
         const GraphicsContext* m_GraphicsContext = nullptr;
-        size_t m_QuadCapacity = 0;
     };
 }

@@ -1,6 +1,10 @@
 #include "EditorUI.h"
 #include "EditorPanel.h"
 #include "EditorStyles.h"
+#include "Panels/ContentBrowserPanel.h"
+#include <Engine/Core/Platform.h>
+#include <Engine/GUI/Button.h>
+#include <Engine/Input/InputManager.h>
 
 #include <Engine/GUI/Icon.h>
 #include <Engine/Icon/IconManager.h>
@@ -12,6 +16,10 @@ namespace
 {
     constexpr float MenuBarHeight = 32.0f;
     constexpr float TabBarHeight = 34.0f;
+    constexpr float TabMaxWidth = 220.0f;
+    constexpr float TabLeftPadding = 16.0f;
+    constexpr float TabRightPadding = 10.0f;
+    constexpr float TabCloseSpacing = 8.0f;
     constexpr float AssetBrowserHeight = 28.0f;
 
     constexpr float DropdownWidth = 160.0f;
@@ -27,18 +35,43 @@ EditorUI::EditorUI(GUI::Manager* guiManager)
     Build();
 }
 
+EditorUI::~EditorUI() = default;
+
+void EditorUI::SetContentBrowser(Scope<ContentBrowserPanel> panel)
+{
+    const auto widget = panel->Build();
+    m_Root->AddChild(widget).SetAnchors(GUI::SAnchors::StretchAll())
+        .SetOffsets(10.0f, MenuBarHeight + TabBarHeight, -10.0f, -AssetBrowserHeight - 10.0f);
+    m_ContentBrowser = std::move(panel);
+}
+
+bool EditorUI::IsContentBrowserHovered() const
+{
+    const auto [x, y] = InputManager::GetMousePosition();
+    return m_ContentBrowser && m_ContentBrowser->Contains({x, y});
+}
+
+bool EditorUI::DismissContentBrowserOutside(const glm::vec2& point)
+{
+    if (!m_ContentBrowser || !m_ContentBrowser->IsOpen() || m_ContentBrowser->Contains(point) ||
+        m_ContentBrowserButton->GetGeometry().Contains(point)) return false;
+    m_ContentBrowser->SetOpen(false);
+    return true;
+}
+
 void EditorUI::Build()
 {
     m_Root = CreateRef<GUI::Canvas>();
 
-    BuildMenuBar();
-    BuildTabBar();
-
     m_ContentArea = CreateRef<GUI::Canvas>();
+    m_ContentArea->SetClipChildren(true);
     m_Root->AddChild(m_ContentArea)
         .SetAnchors(GUI::SAnchors::StretchAll())
         .SetOffsets(0.0f, MenuBarHeight + TabBarHeight, 0.0f, -AssetBrowserHeight);
 
+    // Draw the editor chrome above document panels.
+    BuildMenuBar();
+    BuildTabBar();
     BuildAssetBrowser();
 
     m_GUIManager->SetRoot(m_Root);
@@ -131,15 +164,23 @@ void EditorUI::BuildAssetBrowser()
         .SetAlignment({ 0.0f, 1.0f })
         .SetSize({ 0.0f, AssetBrowserHeight });
 
-    const auto title = CreateRef<GUI::TextBlock>("Project");
-    title->SetColor(styles.TextPrimary);
-    title->SetFontSize(12.0f);
-    m_AssetBrowser->AddChild(title).SetMargin(GUI::SMargin(0.0f, 0.0f, 8.0f, 0.0f));
+    m_ContentBrowserButton = CreateRef<GUI::Button>();
+    m_ContentBrowserButton->SetStyle(styles.PanelHeaderButton);
+    m_ContentBrowserButton->SetPadding({10, 5});
+    const auto title = CreateRef<GUI::TextBlock>("Content Browser");
+    title->SetColor(styles.TextPrimary); title->SetFontSize(11);
+    m_ContentBrowserButton->SetContent(title);
+    m_ContentBrowserButton->OnClick([this]
+    { if (m_ContentBrowser) m_ContentBrowser->SetOpen(!m_ContentBrowser->IsOpen()); });
+    m_AssetBrowser->AddChild(m_ContentBrowserButton)
+        .SetVerticalAlignment(GUI::EVerticalAlignment::Center)
+        .SetMargin({0, 5, 12, 5});
 
-    const auto path = CreateRef<GUI::TextBlock>("Assets / Prefabs -- 6 items");
+    const auto path = CreateRef<GUI::TextBlock>("Assets / VFX");
     path->SetColor(styles.TextSecondary);
     path->SetFontSize(11.0f);
     m_AssetBrowser->AddChild(path);
+    m_AssetBrowserStatus = path;
 }
 
 void EditorUI::AddMenuItem(const std::string& label)
@@ -161,7 +202,11 @@ void EditorUI::AddTab(const std::string& label, const bool active)
 
     const auto text = CreateRef<GUI::TextBlock>(label);
     text->SetFontSize(12.0f);
-    column->AddChild(text).SetMargin(GUI::SMargin(16.0f, 7.0f, 16.0f, 4.0f));
+    text->SetOverflow(GUI::ETextOverflow::Ellipsis);
+    const auto header = CreateRef<GUI::HorizontalBox>();
+    column->AddChild(header).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill)
+        .SetMargin(GUI::SMargin(TabLeftPadding, 7.0f, TabRightPadding, 4.0f));
+    header->AddChild(text).SetFillSize().SetVerticalAlignment(GUI::EVerticalAlignment::Center);
 
     const auto underline = CreateRef<GUI::Canvas>();
     // Explicit small size: without it Canvas's own default desired size (100x100) would
@@ -171,29 +216,42 @@ void EditorUI::AddTab(const std::string& label, const bool active)
     underline->SetSize({ 1.0f, 2.0f });
     column->AddChild(underline).SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
 
-    m_TabBar->AddChild(column).SetVerticalAlignment(GUI::EVerticalAlignment::Bottom);
+    auto& slot = m_TabBar->AddChild(column);
+    slot.SetVerticalAlignment(GUI::EVerticalAlignment::Bottom);
 
     const int index = static_cast<int>(m_Tabs.size());
-    m_Tabs.push_back({ text, underline });
+    m_Tabs.push_back({ column, header, text, underline, &slot });
+    UpdateTabWidth(index);
     if (active) m_ActiveTabIndex = index;
 
     // Registering on the column (not the label/underline individually) works because an
     // unhandled press on a leaf child bubbles up to the nearest ancestor with a callback -
     // see Widget::HandleMouseDown's early-out when no callback is set.
     column->OnClick([this, index] { SetActiveTab(index); });
+    column->OnMouseEnter([] { Platform::Get().SetCursorShape(ECursorShape::Hand); });
+    column->OnMouseLeave([] { Platform::Get().SetPreviousCursorShape(); });
 
     SetActiveTab(m_ActiveTabIndex);
 }
 
 void EditorUI::SetActiveTab(const int index)
 {
+    m_GUIManager->ClearPopups();
     const auto& styles = EditorStyle::Get();
     m_ActiveTabIndex = index;
     for (size_t i = 0; i < m_Tabs.size(); ++i)
     {
+        if (!m_Tabs[i].Root) continue;
         const bool active = static_cast<int>(i) == index;
         m_Tabs[i].Label->SetColor(active ? styles.TextPrimary : styles.TextSecondary);
         m_Tabs[i].Underline->SetStyle(active ? styles.TabActiveIndicator : styles.Transparent);
+    }
+    for (auto& panel : m_Panels)
+    {
+        const bool active = panel.TabIndex < 0 || panel.TabIndex == index;
+        if (panel.Widget)
+            panel.Widget->SetVisibility(active ? GUI::EVisibility::Visible : GUI::EVisibility::Collapsed);
+        panel.Panel->OnActivated(active);
     }
 }
 
@@ -270,7 +328,7 @@ Ref<GUI::Widget> EditorUI::BuildDropdownContent(const std::vector<std::string>& 
     return panel;
 }
 
-void EditorUI::AddPanel(Scope<EditorPanel> panel)
+void EditorUI::AddPanel(Scope<EditorPanel> panel, const int tabIndex)
 {
     const auto widget = panel->Build();
     if (widget)
@@ -279,11 +337,90 @@ void EditorUI::AddPanel(Scope<EditorPanel> panel)
             .SetAnchors(GUI::SAnchors::StretchAll());
     }
 
-    m_Panels.push_back(std::move(panel));
+    const bool active = tabIndex < 0 || tabIndex == m_ActiveTabIndex;
+    if (widget)
+        widget->SetVisibility(active ? GUI::EVisibility::Visible : GUI::EVisibility::Collapsed);
+    panel->OnActivated(active);
+    panel->SetOverlaysHidden(m_ContentBrowser && m_ContentBrowser->IsOpen());
+    m_Panels.push_back({ std::move(panel), widget, tabIndex });
+}
+
+void EditorUI::SetAssetBrowserStatus(const std::string& status)
+{
+    m_AssetBrowserStatus->SetText(status);
 }
 
 void EditorUI::Update(const Timestep frameTime)
 {
+    if (m_ContentBrowser)
+    {
+        m_ContentBrowser->OnUpdate(frameTime);
+        for (auto& panel : m_Panels)
+            panel.Panel->SetOverlaysHidden(m_ContentBrowser->IsOpen());
+        auto style = EditorStyle::Get().PanelHeaderButton;
+        if (m_ContentBrowser->IsOpen())
+        {
+            style.Normal.Background = EditorStyle::Get().PanelSection.Normal.Background;
+            style.Normal.Background.CornerRadius = glm::vec4(4.0f);
+            style.Hovered = style.Normal;
+            style.Pressed = style.Normal;
+            style.Focused = style.Normal;
+        }
+        m_ContentBrowserButton->SetStyle(style);
+    }
     for (auto& panel : m_Panels)
-        panel->OnUpdate(frameTime);
+    {
+        panel.Panel->UpdateOverlayAnimations(frameTime);
+        if (panel.TabIndex < 0 || panel.TabIndex == m_ActiveTabIndex)
+            panel.Panel->OnUpdate(frameTime);
+    }
+}
+
+int EditorUI::AddDocument(Scope<EditorPanel> panel, const std::string& title, std::function<void(int)> closeRequested)
+{
+    const int index = static_cast<int>(m_Tabs.size());
+    AddTab(title, true); AddPanel(std::move(panel), index);
+    const auto close = CreateRef<GUI::TextBlock>("×"); close->SetFontSize(12);
+    m_Tabs[index].Header->AddChild(close).SetVerticalAlignment(GUI::EVerticalAlignment::Center)
+        .SetMargin(GUI::SMargin(TabCloseSpacing, 0, 0, 0));
+    m_Tabs[index].CloseWidth = close->Measure({GUI::UnconstrainedSize, GUI::UnconstrainedSize}).x;
+    UpdateTabWidth(index);
+    close->OnClick([closeRequested = std::move(closeRequested), index] { closeRequested(index); });
+    return index;
+}
+
+void EditorUI::ActivateTab(const int index)
+{
+    if (index >= 0 && index < static_cast<int>(m_Tabs.size()) && m_Tabs[index].Root) SetActiveTab(index);
+}
+
+void EditorUI::SetTabTitle(const int index, const std::string& title)
+{
+    if (index >= 0 && index < static_cast<int>(m_Tabs.size()) && m_Tabs[index].Root && m_Tabs[index].Label->GetText() != title)
+    {
+        m_Tabs[index].Label->SetText(title);
+        UpdateTabWidth(index);
+    }
+}
+
+void EditorUI::CloseDocument(const int index)
+{
+    if (index <= 0 || index >= static_cast<int>(m_Tabs.size()) || !m_Tabs[index].Root) return;
+    if (m_ActiveTabIndex == index) SetActiveTab(0);
+    m_TabBar->RemoveChild(m_Tabs[index].Root);
+    for (auto it = m_Panels.begin(); it != m_Panels.end();)
+    {
+        if (it->TabIndex != index) { ++it; continue; }
+        m_ContentArea->RemoveChild(it->Widget);
+        it = m_Panels.erase(it);
+    }
+    m_Tabs[index] = {};
+}
+
+void EditorUI::UpdateTabWidth(const int index)
+{
+    auto& tab = m_Tabs[index];
+    const float labelWidth = tab.Label->Measure({GUI::UnconstrainedSize, GUI::UnconstrainedSize}).x;
+    const float closeWidth = tab.CloseWidth > 0 ? tab.CloseWidth + TabCloseSpacing : 0;
+    tab.Slot->SetFixedSize(std::min(TabMaxWidth, labelWidth + closeWidth + TabLeftPadding + TabRightPadding));
 }

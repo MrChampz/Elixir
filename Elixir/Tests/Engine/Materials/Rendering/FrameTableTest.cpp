@@ -113,3 +113,48 @@ TEST(FrameTableTest, ResolvesAuthoredTextureSlots)
     EXPECT_EQ(data.TextureIndices[0], 37);
     EXPECT_EQ(data.TextureIndices[1], 5);
 }
+
+TEST(FrameTableTest, TextureResolutionFailureDoesNotPublishOrConsumeCapacityAndCanBeRetried)
+{
+    auto material = CreateRef<Material>("Failed texture registration");
+    ASSERT_TRUE(material->DefineParameter("Albedo", {
+        .Kind = EMaterialParameterKind::Texture,
+        .DefaultValue = SMaterialParameter::MakeTexture(CreateRef<TestTexture>()),
+    }));
+    const auto instance = CreateRef<MaterialInstance>(material);
+    const auto compiled = Compiler::Build(*material);
+    ASSERT_TRUE(compiled);
+    const auto proxy = MaterialRenderProxy::Create(compiled.Material, *instance);
+    ASSERT_TRUE(proxy);
+
+    bool available = false;
+    uint32_t attempts = 0;
+    FrameTable table(2, 5, [&](const Ref<Texture>&) -> std::optional<uint32_t>
+    {
+        ++attempts;
+        return available ? std::optional<uint32_t>(37) : std::nullopt;
+    });
+    const auto validMaterial = CreateRef<Material>("Valid material");
+    const auto validInstance = CreateRef<MaterialInstance>(validMaterial);
+    const auto validCompiled = Compiler::Build(*validMaterial);
+    ASSERT_TRUE(validCompiled);
+    const auto validProxy = MaterialRenderProxy::Create(validCompiled.Material, *validInstance);
+    ASSERT_TRUE(validProxy);
+    ASSERT_TRUE(table.Add(*validProxy));
+
+    EXPECT_FALSE(table.Add(*proxy));
+    EXPECT_FALSE(table.Find(*proxy));
+    ASSERT_EQ(table.GetCount(), 1u);
+    ASSERT_TRUE(table.Find(*validProxy));
+    EXPECT_EQ(*table.Find(*validProxy), 0u);
+
+    available = true;
+    const auto index = table.Add(*proxy);
+    ASSERT_TRUE(index);
+    EXPECT_EQ(*index, 1u);
+    ASSERT_EQ(table.GetCount(), 2u);
+    EXPECT_EQ(table.GetData()[1].TextureIndices[0], 37u);
+    EXPECT_EQ(table.GetData()[1].TextureIndices[1], 5u);
+    EXPECT_TRUE(table.Add(*proxy));
+    EXPECT_EQ(attempts, 2u);
+}

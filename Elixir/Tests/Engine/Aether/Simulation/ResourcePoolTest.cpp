@@ -242,3 +242,25 @@ TEST(ResourcePoolTest, AllocatesNativeParameterWordsAndRollsBackExhaustion)
     EXPECT_EQ(reused->Parameters.Offset, first->Parameters.Offset);
     EXPECT_EQ(reused->Constants.Offset, first->Constants.Offset);
 }
+
+TEST(ResourcePoolTest, ParticleAllocationFailureRollsBackAllRangesAndRetirementAllowsReuse)
+{
+    auto limits = MakePoolLimits();
+    limits.ParticleCapacity = 48;
+    const ParticleStateLayoutRegistry layouts{limits.ParticleCapacity};
+    ResourcePool pool{limits, layouts};
+    auto system = MakeCompiledSystem(32, 1, 1, 1, 0);
+    const auto first = pool.Allocate(system);
+    ASSERT_TRUE(first);
+    EXPECT_EQ(first->Particles.Count, 32);
+    EXPECT_FALSE(pool.Allocate(system));
+    auto sprite = MakeCompiledSystem(2, 1, 1, 1, 0);
+    const auto spriteAllocation = pool.Allocate(sprite);
+    ASSERT_TRUE(spriteAllocation);
+    EXPECT_EQ(spriteAllocation->Particles.Offset, 32);
+    pool.Release(*first);
+    const auto replacement = pool.Allocate(system);
+    ASSERT_TRUE(replacement);
+    EXPECT_EQ(replacement->Particles.Offset, first->Particles.Offset);
+    EXPECT_NE(replacement->Generation, first->Generation);
+}

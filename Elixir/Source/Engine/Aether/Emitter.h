@@ -3,10 +3,12 @@
 #include <Engine/Core/UUID.h>
 #include <Engine/Materials/MaterialInstance.h>
 #include <Engine/Materials/Rendering/MaterialResolver.h>
-#include <Engine/Aether/Modules/Module.h>
 #include <Engine/Aether/Core/ParameterStore.h>
 #include <Engine/Aether/Core/CurveStore.h>
 #include <Engine/Aether/Core/ColorCurveStore.h>
+#include <Engine/Aether/Modules/Module.h>
+#include <Engine/Aether/Simulation/SolverConfig.h>
+#include <Engine/Aether/Rendering/EmitterRenderConfig.h>
 #include <Engine/Aether/Effect/MaterialDescription.h>
 #include <Engine/Aether/Effect/MaterialFactory.h>
 
@@ -37,6 +39,21 @@ namespace Elixir::Aether
         UUID Id;
         EParticleRenderMode RenderMode = EParticleRenderMode::Sprite;
         EParticleSimulationSpace SimulationSpace = EParticleSimulationSpace::World;
+
+        /** @brief Removes particles when their age reaches Lifetime; false keeps them alive until another kill condition. */
+        bool KillOnLifetimeExpired = true;
+
+        /** Constraint descriptor range in the compiled system's module data. */
+        uint32_t ConstraintOffset = 0;
+
+        /** Number of constraint descriptors in this emitter's range. */
+        uint32_t ConstraintCount = 0;
+
+        /** Shared execution settings for this emitter's constraint modules. */
+        SSolverConfig Solver;
+
+        /** Immutable geometry configuration interpreted by the selected renderer. */
+        Ref<const Rendering::SEmitterRenderConfig> RenderConfig;
 
         // Material instance submitted to the material system with each frame.
         Ref<MaterialInstance> Material;
@@ -78,6 +95,8 @@ GENERATE_HASH_FUNCTION(Elixir::Aether::SCompiledEmitter)
 
 namespace Elixir::Aether
 {
+    using namespace Rendering;
+
     /**
      * @brief Defines one particle source within an authored Aether system.
      *
@@ -103,7 +122,7 @@ namespace Elixir::Aether
          * @param maxParticles Maximum number of particles the emitter can own.
          * @param spawnRate Default spawn rate in particles per second.
          */
-        Emitter(const std::string& name, uint32_t maxParticles, float spawnRate);
+        Emitter(std::string name, uint32_t maxParticles, float spawnRate);
 
         Emitter(Emitter&&) = default;
         Emitter& operator=(Emitter&&) = default;
@@ -149,6 +168,36 @@ namespace Elixir::Aether
          * @note The emitter's material must support this mode.
          */
         void SetRenderMode(const EParticleRenderMode mode) { m_RenderMode = mode; }
+
+        /** @brief Returns execution settings for this emitter's constraint modules. */
+        const SSolverConfig& GetSolverConfig() const { return m_Solver; }
+
+        /**
+         * @brief Updates execution settings for all constraint modules.
+         * @param config Solver settings to validate and copy.
+         * @return False for invalid values, preserving the previous settings.
+         */
+        bool SetSolverConfig(const Simulation::SSolverConfig& config);
+
+        /** @brief Returns the immutable renderer configuration, or null for defaults. */
+        const Ref<const Rendering::SEmitterRenderConfig>& GetRenderConfig() const
+        {
+            return m_RenderConfig;
+        }
+
+        /**
+         * @brief Assigns an immutable configuration interpreted by the renderer.
+         * @param config Shared configuration; null selects the renderer's defaults.
+         * @return False for invalid values, preserving the previous configuration.
+         * @pre Do not modify the configuration through mutable aliases after assignment.
+         */
+        bool SetRenderConfig(Ref<const Rendering::SEmitterRenderConfig> config);
+
+        /** @brief Reports whether lifetime expiry removes particles from this emitter. */
+        bool ShouldKillOnLifetimeExpired() const { return m_KillOnLifetimeExpired; }
+
+        /** @brief Controls lifetime-based death without changing age, lifetime, or explicit kill modules. */
+        void SetKillOnLifetimeExpired(bool enabled) { m_KillOnLifetimeExpired = enabled; }
 
         /**
          * @brief Returns the simulation space used by this emitter.
@@ -213,10 +262,10 @@ namespace Elixir::Aether
         }
 
         /**
-         * @brief Configure periodic burst emission.
+         * @brief Configures periodic bursts or one initial burst.
          *
          * @param count Number of particles requested by each burst.
-         * @param intervalSeconds Time between consecutive bursts.
+         * @param intervalSeconds Time between bursts; zero emits once when the instance starts or resets.
          */
         void SetBurst(uint32_t count, float intervalSeconds);
 
@@ -315,8 +364,14 @@ namespace Elixir::Aether
         /** Checks whether the current material was assigned by the effect resolver. */
         bool HasResolvedMaterial() const { return m_MaterialIsResolved; }
 
-        // Compiles this emitter into internal GPU-ready runtime data.
-        SCompiledEmitter Compile(
+        /**
+         * @brief Compile this emitter into internal GPU-ready runtime data.
+         * @param paramStore System parameters used to resolve emitter settings.
+         * @param params Compiled parameters available to module bindings.
+         * @param program Shared operation tables; discard them if compilation fails.
+         * @return Compiled data, or no value if a module fails to compile.
+         */
+        std::optional<SCompiledEmitter> Compile(
             const ParameterStore& paramStore,
             const std::vector<SCompiledParameter>& params,
             SCompiledModuleData& program
@@ -324,15 +379,20 @@ namespace Elixir::Aether
 
         UUID m_Id;
         std::string m_Name;
+
         EParticleRenderMode m_RenderMode = EParticleRenderMode::Sprite;
         EParticleSimulationSpace m_SimulationSpace = EParticleSimulationSpace::World;
+        SSolverConfig m_Solver;
+        Ref<const Rendering::SEmitterRenderConfig> m_RenderConfig;
+        bool m_KillOnLifetimeExpired = true;
+
         std::optional<Effect::SMaterialDescription> m_MaterialDescription;
         Ref<MaterialInstance> m_Material;
         bool m_MaterialIsResolved = false;
-        uint32_t m_MaxParticles;
 
         std::vector<Scope<Module>> m_Modules;
 
+        uint32_t m_MaxParticles;
         std::string m_SpawnRateParamName;
         float m_SpawnRate = 0.0f; // particles per second
         uint32_t m_BurstCount = 0u;

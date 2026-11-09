@@ -1,15 +1,9 @@
 #pragma once
 
-#include <cmath>
-#include <format>
-#include <limits>
-#include <optional>
+#include <Engine/Aether/Core/DynamicInput.h>
 
 #include <magic_enum/magic_enum.hpp>
 #include <simdjson.h>
-
-#include <Engine/Aether/Core/DynamicInput.h>
-#include <Engine/Aether/Modules/Module.h>
 
 namespace Elixir::Aether::Effect
 {
@@ -99,6 +93,23 @@ namespace Elixir::Aether::Effect
             }
 
             return static_cast<uint32_t>(value);
+        }
+
+        /** @brief Reads a required boolean field. */
+        bool RequireBoolean(simdjson::ondemand::object& object, std::string_view key)
+        {
+            if (Failed()) return false;
+
+            auto field = object[key];
+            bool value;
+
+            if (field.error() || field.get_bool().get(value))
+            {
+                Fail("Field '{}' must be a boolean.", key);
+                return false;
+            }
+
+            return value;
         }
 
         /** @brief Reads a required string field. */
@@ -205,11 +216,15 @@ namespace Elixir::Aether::Effect
             return result;
         }
 
-        /** @brief Reads a four-element numeric array or parameter reference, using the fallback when absent. */
+        /**
+         * @brief Reads a vector literal or parameter reference, using the fallback when absent.
+         * @param allowFloat3 Also accepts three-element arrays and sets the fourth component to zero.
+         */
         Float4Field ParseFloat4(
             simdjson::ondemand::object& object,
             std::string_view key,
-            const glm::vec4 fallback = glm::vec4(0.0f)
+            const glm::vec4 fallback = glm::vec4(0.0f),
+            bool allowFloat3 = false
         )
         {
             Float4Field result{ fallback, {} };
@@ -235,7 +250,17 @@ namespace Elixir::Aether::Effect
                     return result;
                 }
 
-                result.Value = ParseFloatVec<4>(array);
+                size_t count = 0;
+                if (array.count_elements().get(count))
+                {
+                    Fail("Invalid vector array '{}'.", key);
+                    return result;
+                }
+
+                result.Value = allowFloat3 && count == 3
+                    ? glm::vec4(ParseFloatVec<3>(array), 0)
+                    : ParseFloatVec<4>(array);
+
                 return result;
             }
 

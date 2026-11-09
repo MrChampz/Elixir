@@ -69,7 +69,7 @@ namespace Elixir::Aether
      * @thread_safety Instance registration and frame-submission publication are
      * synchronized. Call BeginFrame() and Render() from the render-frame path.
      */
-    class ELIXIR_API Manager final
+    class ELIXIR_API Manager
     {
     public:
         /**
@@ -92,10 +92,8 @@ namespace Elixir::Aether
             MaterialSystem& materialSystem
         );
 
-        /**
-         * @brief Destroys the manager and its simulation and rendering services.
-         */
-        ~Manager();
+        /** @brief Destroys the manager and its simulation and rendering services. */
+        virtual ~Manager();
 
         Manager(const Manager&) = delete;
         Manager& operator=(const Manager&) = delete;
@@ -191,6 +189,25 @@ namespace Elixir::Aether
          * @note Rendering another frame replaces these values.
          */
         const SRenderingMetrics& GetLastRenderingMetrics() const;
+
+    protected:
+        /**
+         * @brief Simulates ordered steps and renders only their final result.
+         * @param camera Camera used to prepare the final particle rendering.
+         * @param sceneTarget Valid color target that defines the render area.
+         * @param steps Finite, nonnegative step durations in seconds, in execution order.
+         * An empty span uses the current frame timestep.
+         * @param initialTime Finite, nonnegative time before the first explicit step.
+         * Measured in seconds and ignored when steps is empty.
+         * @pre BeginFrame() was called once for the current graphics frame.
+         * @pre sceneTarget is a valid color target.
+         */
+        void RenderSteps(
+            const Camera& camera,
+            const Ref<Image>& sceneTarget,
+            std::span<const float> steps,
+            float initialTime
+        );
 
     private:
         InstanceRegistry& GetRuntime() const;

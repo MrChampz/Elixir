@@ -5,10 +5,12 @@
 #include <Engine/Aether/Core/Particle.h>
 #include <Engine/Aether/Core/ParticleStateLayout.h>
 #include <Engine/Aether/Core/ResourceAllocation.h>
+#include <Engine/Aether/Rendering/EmitterRenderConfig.h>
 
 namespace Elixir::Aether::Simulation
 {
     using namespace Materials;
+    using namespace Rendering;
 
     /**
      * @brief Retains the particle-state buffer for one simulation layout.
@@ -40,6 +42,9 @@ namespace Elixir::Aether::Simulation
         uint32_t EmitterIndex = 0;
         uint32_t LocalParticleOffset = 0;
         uint32_t ParticleCount = 0;
+
+        /** Immutable geometry configuration for this emitter. */
+        Ref<const SEmitterRenderConfig> RenderConfig;
     };
 
     /**

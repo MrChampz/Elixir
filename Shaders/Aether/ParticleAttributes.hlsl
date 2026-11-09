@@ -10,7 +10,7 @@ static const uint ParticleAttribute_Color      = 5;
 static const uint ParticleAttribute_Size       = 6;
 static const uint ParticleAttribute_Lifetime   = 7;
 static const uint ParticleAttribute_Tangent    = 8;
-static const uint ParticleAttribute_RibbonId   = 9;
+static const uint ParticleAttribute_GroupId    = 9;
 static const uint ParticleAttribute_Temp0      = 10;
 static const uint ParticleAttribute_Temp1      = 11;
 static const uint ParticleAttribute_Temp2      = 12;
@@ -26,7 +26,7 @@ struct AttributeTable
     float4 Size;
     float4 Lifetime;
     float4 Tangent;
-    uint   RibbonId;
+    uint   GroupId;
     float4 Temp0;
     float4 Temp1;
     float4 Temp2;
@@ -44,7 +44,7 @@ AttributeTable EmptyAttributeTable()
     attributes.Size = float4(6.0, 0.0, 0.0, 0.0);
     attributes.Lifetime = float4(1.0, 0.0, 0.0, 0.0);
     attributes.Tangent = float4(1.0, 0.0, 0.0, 0.0);
-    attributes.RibbonId = 0u;
+    attributes.GroupId = 0u;
     attributes.Temp0 = 0.0;
     attributes.Temp1 = 0.0;
     attributes.Temp2 = 0.0;
@@ -64,7 +64,7 @@ AttributeTable LoadAttributes(SGPUParticle state)
     table.Color = state.Color;
     table.Size = float4(state.Size, 0.0, 0.0, 0.0);
     table.Lifetime = float4(state.Lifetime, state.Age, 0.0, 0.0);
-    table.RibbonId = state.RibbonId;
+    table.GroupId = state.GroupId;
     table.Temp0 = 0.0;
     table.Temp1 = 0.0;
     table.Temp2 = 0.0;
@@ -81,7 +81,7 @@ SGPUParticle StoreAttributes(SGPUParticle state, AttributeTable table, float age
     state.Age = age;
     state.Transform = float4(table.Rotation.x, table.Scale.x, 0.0, 0.0);
     state.Tangent = table.Tangent.xyz;
-    state.RibbonId = table.RibbonId;
+    state.GroupId = table.GroupId;
     state.Color = table.Color;
     state.Lifetime = table.Lifetime.x;
     state.Alive = table.Position.w;
@@ -106,8 +106,8 @@ float4 GetAttribute(AttributeTable table, uint attrId)
         return table.Lifetime;
     if (attrId == ParticleAttribute_Tangent)
         return table.Tangent;
-    if (attrId == ParticleAttribute_RibbonId)
-        return float4(float(table.RibbonId), 0.0, 0.0, 0.0);
+    if (attrId == ParticleAttribute_GroupId)
+        return float4(float(table.GroupId), 0.0, 0.0, 0.0);
     if (attrId == ParticleAttribute_Temp0)
         return table.Temp0;
     if (attrId == ParticleAttribute_Temp1)
@@ -150,8 +150,8 @@ void SetAttribute(inout AttributeTable table, uint attrId, float4 value)
 
 void SetAttribute(inout AttributeTable table, uint attrId, uint value)
 {
-    if (attrId == ParticleAttribute_RibbonId)
-        table.RibbonId = value;
+    if (attrId == ParticleAttribute_GroupId)
+        table.GroupId = value;
 }
 
 #endif

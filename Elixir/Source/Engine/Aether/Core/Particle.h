@@ -13,7 +13,7 @@ namespace Elixir::Aether::Core
         Size,
         Lifetime,
         Tangent,
-        RibbonId,
+        GroupId,
         Temp0,
         Temp1,
         Temp2,
@@ -24,7 +24,8 @@ namespace Elixir::Aether::Core
     {
         Sprite = 0,
         Ribbon = 1,
-        Mesh   = 2
+        Mesh   = 2,
+        Strand = 3
     };
 
     enum class EParticleSimulationSpace : uint8_t

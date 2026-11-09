@@ -7,7 +7,7 @@ static const uint ApplyVortex_Normal = 1u;
 static const uint ApplyVortex_Tangential = 2u;
 static const uint ApplyVortex_Radial = 3u;
 
-#include "OperationMath.hlsl"
+#include "../Math.hlsl"
 
 void ApplyVortex(
     inout SOperationExecutor executor,

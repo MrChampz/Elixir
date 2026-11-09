@@ -124,6 +124,7 @@ namespace Elixir::GUI
         const auto& appearance = (const STextFieldAppearance&)GetResolvedAppearance();
         batch.AddBrush(appearance.Background, m_Geometry, zOrder);
 
+        RenderBatch content;
         const auto textSize = MeasureTextSize(m_Text);
         const auto textPos = CalculateTextPosition(textSize);
 
@@ -140,26 +141,24 @@ namespace Elixir::GUI
             const auto selectionPos = glm::vec2(selx1, textPos.y - 2.0f);
             const auto selectionSize = glm::vec2(selx2 - selx1, selectionHeight);
 
-            batch.AddRect(
+            content.AddRect(
                 { selectionPos, selectionSize },
                 m_SelectionColor,
                 {}, {}, {}, {},
-                zOrder + 1,
-                m_Geometry
+                zOrder + 1
             );
         }
 
         // Text or placeholder
         if (!m_Text.empty())
         {
-            batch.AddText(
+            content.AddText(
                 m_Text,
                 { textPos, textSize },
                 m_Font,
                 m_FontSize,
                 appearance.Foreground,
-                zOrder + 2,
-                m_Geometry
+                zOrder + 2
             );
         }
         else
@@ -167,14 +166,13 @@ namespace Elixir::GUI
             const auto placeholderSize = MeasureTextSize(m_Placeholder);
             const auto placeholderPos = CalculateTextPosition(placeholderSize);
 
-            batch.AddText(
+            content.AddText(
                 m_Placeholder,
                 { placeholderPos, placeholderSize },
                 m_Font,
                 m_FontSize,
                 m_PlaceholderColor,
-                zOrder + 2,
-                m_Geometry
+                zOrder + 2
             );
         }
 
@@ -188,7 +186,7 @@ namespace Elixir::GUI
             if (cursorX >= m_Geometry.Position.x + m_Padding.Left &&
                 cursorX <= m_Geometry.Position.x + m_Geometry.Size.x + m_Padding.Right)
             {
-                batch.AddRect(
+                content.AddRect(
                     { cursorPos, { 1.5f, cursorHeight } },
                     m_CursorColor,
                     {}, {}, {}, {},
@@ -196,6 +194,9 @@ namespace Elixir::GUI
                 );
             }
         }
+
+        content.Clip(m_Geometry);
+        batch.Append(content, 0);
     }
 
     const SAppearance& TextField::GetResolvedAppearance() const

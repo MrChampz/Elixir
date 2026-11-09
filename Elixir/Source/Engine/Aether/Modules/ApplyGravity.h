@@ -44,7 +44,7 @@ namespace Elixir::Aether::Modules
         /** @brief Creates this module from its serialized fields. */
         static Scope<Module> Create(Effect::ModuleParseContext& context, simdjson::ondemand::object& object)
         {
-            const auto gravity = context.ParseFloat4(object, "gravity");
+            const auto gravity = context.ParseFloat4(object, "gravity", glm::vec4(0), true);
             auto module = CreateScope<ApplyGravity>(glm::vec3{ gravity.Value });
             module->BindParameter(gravity.Param);
             return module;

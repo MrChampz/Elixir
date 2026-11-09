@@ -28,7 +28,7 @@ struct VSInput
     float4 PositionSize    : POSITION;
     float4 VelocityAge     : TEXCOORD0;
     float4 Transform       : TEXCOORD1;
-    float4 TangentRibbonId : TEXCOORD2;
+    float4 TangentGroupId  : TEXCOORD2;
     float4 Color           : COLOR;
     float4 Metadata        : TEXCOORD3;
 };
@@ -39,7 +39,7 @@ struct VSOutput
     float2 TexCoord  : TEXCOORD0;
     float2 TexCoord1 : TEXCOORD1;
     float3 ViewPos   : POSITION0;
-    float4 Color : COLOR;
+    float4 Color     : COLOR;
 };
 
 float MaxAxisScale(float4x4 transform)

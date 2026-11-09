@@ -3,6 +3,8 @@
 
 #include <Engine/Aether/Modules/ApplyAngularVelocity.h>
 #include <Engine/Aether/Modules/ApplyGravity.h>
+#include <Engine/Aether/Modules/DistanceConstraint.h>
+#include <Engine/Aether/Modules/CurlNoiseForce.h>
 #include <Engine/Aether/Modules/ApplyLinearDrag.h>
 #include <Engine/Aether/Modules/ApplyVortex.h>
 #include <Engine/Aether/Modules/ColorOverLife.h>
@@ -15,13 +17,15 @@
 #include <Engine/Aether/Modules/SetPositionDisk.h>
 #include <Engine/Aether/Modules/SetPositionOnCircle.h>
 #include <Engine/Aether/Modules/SetPositionVortexRibbonPath.h>
-#include <Engine/Aether/Modules/SetRibbonId.h>
-#include <Engine/Aether/Modules/SetRibbonIdFromSpawnOrder.h>
+#include <Engine/Aether/Modules/SetGroupId.h>
+#include <Engine/Aether/Modules/SetGroupIdFromSpawnOrder.h>
 #include <Engine/Aether/Modules/SetRotation.h>
 #include <Engine/Aether/Modules/SetScale.h>
 #include <Engine/Aether/Modules/SetSize.h>
 #include <Engine/Aether/Modules/SetVelocityCone.h>
 #include <Engine/Aether/Modules/SizeOverLife.h>
+
+#include <magic_enum/magic_enum.hpp>
 
 namespace Elixir::Aether::Effect
 {
@@ -55,13 +59,17 @@ namespace Elixir::Aether::Effect
         const auto it = GetRegistry().find(std::string(typeName));
         if (context.Failed() || it == GetRegistry().end())
             return nullptr;
+
         auto module = it->second(context, object);
+
         return context.Failed() ? nullptr : std::move(module);
     }
 
     // Register built-in factories only in the engine shared library.
     AETHER_REGISTER_MODULE(ApplyAngularVelocity, Modules::ApplyAngularVelocity::Create)
+    AETHER_REGISTER_MODULE(CurlNoiseForce, Modules::CurlNoiseForce::Create)
     AETHER_REGISTER_MODULE(ApplyGravity, Modules::ApplyGravity::Create)
+    AETHER_REGISTER_MODULE(DistanceConstraint, Modules::DistanceConstraint::Create)
     AETHER_REGISTER_MODULE(ApplyLinearDrag, Modules::ApplyLinearDrag::Create)
     AETHER_REGISTER_MODULE(ApplyVortex, Modules::ApplyVortex::Create)
     AETHER_REGISTER_MODULE(ColorOverLife, Modules::ColorOverLife::Create)
@@ -74,8 +82,8 @@ namespace Elixir::Aether::Effect
     AETHER_REGISTER_MODULE(SetPositionDisk, Modules::SetPositionDisk::Create)
     AETHER_REGISTER_MODULE(SetPositionOnCircle, Modules::SetPositionOnCircle::Create)
     AETHER_REGISTER_MODULE(SetPositionVortexRibbonPath, Modules::SetPositionVortexRibbonPath::Create)
-    AETHER_REGISTER_MODULE(SetRibbonId, Modules::SetRibbonId::Create)
-    AETHER_REGISTER_MODULE(SetRibbonIdFromSpawnOrder, Modules::SetRibbonIdFromSpawnOrder::Create)
+    AETHER_REGISTER_MODULE(SetGroupId, Modules::SetGroupId::Create)
+    AETHER_REGISTER_MODULE(SetGroupIdFromSpawnOrder, Modules::SetGroupIdFromSpawnOrder::Create)
     AETHER_REGISTER_MODULE(SetRotation, Modules::SetRotation::Create)
     AETHER_REGISTER_MODULE(SetScale, Modules::SetScale::Create)
     AETHER_REGISTER_MODULE(SetSize, Modules::SetSize::Create)

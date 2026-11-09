@@ -21,7 +21,7 @@ namespace Elixir::Aether::Core
         SetPositionOnCircle = 10,
         SetPositionCircularPath = 11,
         SetPositionVortexRibbonPath = 12,
-        SetRibbonIdFromSpawnOrder = 13,
+        SetGroupIdFromSpawnOrder = 13,
         SampleCurve = 14,
         SampleColorCurve = 15,
         Add = 16,
@@ -29,6 +29,7 @@ namespace Elixir::Aether::Core
         Clamp = 18,
         CopyFromAttribute = 19,
         ApplyVortex = 20,
+        SampleCurlNoise = 21,
     };
     
     /** @brief Stores the fixed 16-byte header of a compiled particle instruction. */

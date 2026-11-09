@@ -1,6 +1,8 @@
 #include "epch.h"
 #include "Renderer.h"
 
+#include <Engine/Aether/Rendering/StrandRenderConfig.h>
+
 namespace Elixir::Aether::Rendering
 {
     using namespace Core;
@@ -32,6 +34,19 @@ namespace Elixir::Aether::Rendering
             uint32_t EmitterIndex = 0;
             uint32_t ParticleBaseOffset = 0;
             uint32_t MaterialIndex = UINT32_MAX;
+        };
+
+        struct SStrandPushConstants
+        {
+            glm::mat4 WorldTransform{1.0f};
+            uint32_t ParticleOffset = 0;
+            uint32_t ParticleCount = 0;
+            uint32_t RadialSegments = 0;
+            uint32_t Subdivisions = 0;
+            float WidthScale = 0;
+            uint32_t OrderStep = 1;
+            uint32_t MaterialIndex = UINT32_MAX;
+            uint32_t MaxPoints = 0;
         };
     }
 
@@ -78,7 +93,7 @@ namespace Elixir::Aether::Rendering
                     { EDataType::Float4,  "PositionSize"    },
                     { EDataType::Float4,  "VelocityAge"     },
                     { EDataType::Float4,  "Transform"       },
-                    { EDataType::Float4,  "TangentRibbonId" },
+                    { EDataType::Float4,  "TangentGroupId" },
                     { EDataType::Float4,  "Color"           },
                     { EDataType::Float4,  "Metadata"        }
                 },
@@ -99,7 +114,7 @@ namespace Elixir::Aether::Rendering
                     { EDataType::Float4,  "PositionSize"    },
                     { EDataType::Float4,  "VelocityAge"     },
                     { EDataType::Float4,  "Transform"       },
-                    { EDataType::Float4,  "TangentRibbonId" },
+                    { EDataType::Float4,  "TangentGroupId" },
                     { EDataType::Float4,  "Color"           },
                     { EDataType::Float4,  "Metadata"        }
                 },
@@ -215,6 +230,7 @@ namespace Elixir::Aether::Rendering
             uint32_t Sprite = UINT32_MAX;
             uint32_t Ribbon = UINT32_MAX;
             uint32_t Mesh   = UINT32_MAX;
+            uint32_t Strand = UINT32_MAX;
         };
 
         std::unordered_map<uint32_t, SGeometryIndices> geometries;
@@ -254,6 +270,13 @@ namespace Elixir::Aether::Rendering
                 },
             };
 
+            const std::array strandStorageBuffers{
+                SStorageBufferBinding{
+                    .Name = "particles",
+                    .Buffer = { resource->ParticleStateBuffer }
+                },
+            };
+
             const SGeometryIndices indices{
                 .Sprite = scene.AddGeometry({
                     .Pipeline = {
@@ -283,6 +306,14 @@ namespace Elixir::Aether::Rendering
                         { .Buffer = m_MeshVertexBuffer.get(), .Binding = 0 },
                         { .Buffer = resource->ParticleStateBuffer.get(), .Binding = 1 },
                     },
+                }),
+                .Strand = scene.AddGeometry({
+                    .Pipeline = {
+                        .VertexLayoutKey = cacheKey,
+                        .VertexLayout = &ribbonVertexLayout,
+                    },
+                    .ConstantBuffers = { constantBuffers.begin(), constantBuffers.end() },
+                    .StorageBuffers = { strandStorageBuffers.begin(), strandStorageBuffers.end() },
                 }),
             };
 
@@ -346,6 +377,50 @@ namespace Elixir::Aether::Rendering
                         ),
                         .Draw = { .VertexCount = item.ParticleCount * 6 },
                     });
+                    break;
+                }
+
+                case EParticleRenderMode::Strand:
+                {
+                    const SStrandRenderConfig defaults;
+                    const auto* config =
+                        dynamic_cast<const SStrandRenderConfig*>(item.RenderConfig.get());
+
+                    if (!item.RenderConfig)
+                        config = &defaults;
+
+                    if (!config)
+                    {
+                        EE_CORE_ERROR("Strand rendering requires tube geometry configuration.")
+                        break;
+                    }
+
+                    const SStrandPushConstants constants{
+                        .WorldTransform = item.WorldTransform,
+                        .ParticleOffset = item.Allocation.Particles.Offset + item.LocalParticleOffset,
+                        .ParticleCount = item.ParticleCount,
+                        .RadialSegments = config->RadialSegments,
+                        .Subdivisions = config->Subdivisions,
+                        .WidthScale = config->WidthScale,
+                        .OrderStep = config->OrderStep,
+                        .MaxPoints = config->MaxPoints,
+                    };
+
+                    scene.Add({
+                        .Pass = EMaterialPass::ParticleStrand,
+                        .Material = item.Material,
+                        .SortDepth = sortDepth,
+                        .GeometryIndex = geometry->Strand,
+                        .PushConstants = SMaterialPushConstants::Create(
+                            constants,
+                            offsetof(SStrandPushConstants, MaterialIndex)
+                        ),
+                        .Draw = {
+                            .VertexCount = config->GetSegmentVertexCount(),
+                            .InstanceCount = item.ParticleCount
+                        },
+                    });
+
                     break;
                 }
 

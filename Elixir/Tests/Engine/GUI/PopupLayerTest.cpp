@@ -175,6 +175,6 @@ TEST(PopupLayerTest, ClipOnOneLayerDoesNotLeakIntoAnother)
     const auto* popupCmd = FindByColor(commands, popupColor);
 
     ASSERT_NE(popupCmd, nullptr);
-    EXPECT_FALSE(popupCmd->ScissorRect.IsValid())
+    EXPECT_FALSE(popupCmd->ClipRect.IsValid())
         << "the root layer's clip must not apply to the popup layer";
 }

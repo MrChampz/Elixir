@@ -36,6 +36,10 @@ namespace Elixir
         {
             glm::mat4 Model{ 1.0f };
             uint32_t MaterialIndex = 0;
+            glm::vec3 Padding{};
+            glm::vec4 VolumeToLocal0{1, 0, 0, 0};
+            glm::vec4 VolumeToLocal1{0, 1, 0, 0};
+            glm::vec4 VolumeToLocal2{0, 0, 1, 0};
         };
     }
 

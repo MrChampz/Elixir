@@ -1,0 +1,115 @@
+{
+  "name": "Hanging Cables",
+  "emitters": [
+    {
+      "name": "Hanging Cables",
+      "renderMode": "Strand",
+      "simulationSpace": "Local",
+      "maxParticles": 480,
+      "spawnRate": 0,
+      "strand": {
+        "widthScale": 0.18,
+        "radialSegments": 6,
+        "subdivisions": 3,
+        "maxPoints": 40,
+        "orderStep": 12
+      },
+      "material": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "blendMode": "Opaque"
+      },
+      "spawnModules": [
+        {
+          "type": "SetPositionBox",
+          "min": [
+            -0.55,
+            0.65,
+            0
+          ],
+          "max": [
+            0.55,
+            0.65,
+            0
+          ]
+        },
+        {
+          "type": "SetLifetime",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetSize",
+          "min": 14,
+          "max": 18
+        },
+        {
+          "type": "SetScale",
+          "min": 1,
+          "max": 1
+        },
+        {
+          "type": "SetColor",
+          "color": [
+            0.15,
+            0.23,
+            0.32,
+            1
+          ]
+        },
+        {
+          "type": "SetGroupIdFromSpawnOrder",
+          "groupCount": 12,
+          "firstGroupId": 0
+        }
+      ],
+      "updateModules": [
+        {
+          "type": "ApplyGravity",
+          "gravity": [
+            0,
+            -1.8,
+            0
+          ]
+        },
+        {
+          "type": "CurlNoiseForce",
+          "strength": 0.025,
+          "frequency": 1.4,
+          "scrollVelocity": [
+            0.06,
+            0,
+            0
+          ],
+          "seed": 17
+        },
+        {
+          "type": "ApplyLinearDrag",
+          "drag": 0.9
+        },
+        {
+          "type": "DistanceConstraint",
+          "maxPoints": 40,
+          "orderStep": 12,
+          "segmentLength": 0.04,
+          "stiffness": 1,
+          "pinFirstParticle": true
+        }
+      ],
+      "burst": {
+        "count": 480,
+        "interval": 0
+      },
+      "particleState": {
+        "killOnLifetimeExpired": false
+      },
+      "solver": {
+        "iterations": 16
+      }
+    }
+  ]
+}

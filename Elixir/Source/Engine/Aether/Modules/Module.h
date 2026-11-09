@@ -6,10 +6,12 @@
 #include <Engine/Aether/Core/Operation.h>
 #include <Engine/Aether/Core/Operand.h>
 #include <Engine/Aether/Core/DynamicInput.h>
+#include <Engine/Aether/Simulation/ParticleConstraints.h>
 
 namespace Elixir::Aether::Modules
 {
     using namespace Elixir::Aether::Core;
+    using namespace Elixir::Aether::Simulation;
 
     /** @brief Identifies the point in the particle lifetime at which a module runs. */
     enum class EModulePhase : uint8_t
@@ -27,6 +29,9 @@ namespace Elixir::Aether::Modules
 
         /** Literal bit patterns packed without float4 padding. */
         std::vector<uint32_t> Constants;
+
+        /** Constraint descriptors addressed by each emitter's constraint range. */
+        std::vector<SDistanceConstraint> Constraints;
 
         /**
          * @brief Removes unused literals and relocates references.
@@ -61,10 +66,10 @@ namespace Elixir::Aether::Modules
     };
 
     /**
-     * @brief Gives a module the data it needs to compile GPU operations.
+     * @brief Gives a module the data it needs to compile particle programs.
      *
      * The context resolves emitter-local values before system-level values. It
-     * appends operations to the compiled system and does not own its inputs.
+     * appends operations or constraints to the compiled system and does not own its inputs.
      * Failed operand compilation logs an error and returns an invalid operand
      * that Emit rejects.
      */
@@ -86,26 +91,6 @@ namespace Elixir::Aether::Modules
         );
 
         /**
-         * @brief Finds a parameter available to this emitter.
-         *
-         * The lookup first checks the emitter-local name, then the system name.
-         *
-         * @param name Authored parameter name.
-         * @return The compiled parameter index, or UINT32_MAX when not found.
-         */
-        uint32_t FindParameter(std::string_view name) const;
-
-        /**
-         * @brief Finds the first compiled parameter for a curve.
-         *
-         * The lookup first checks the emitter-local curve, then the system curve.
-         *
-         * @param name Authored curve name.
-         * @return The compiled parameter index, or UINT32_MAX when not found.
-         */
-        uint32_t FindCurve(std::string_view name) const;
-
-        /**
          * @brief Returns the gravity multiplier configured by the emitter.
          * @return The gravity multiplier.
          */
@@ -115,13 +100,28 @@ namespace Elixir::Aether::Modules
          * @brief Append one operation to the compiled system.
          *
          * The operand count and types must match the operation definition. Invalid arguments
-         * are logged and leave the operation and operand tables unchanged.
+         * are logged and leave the operation and operand tables unchanged. Any failure marks
+         * this context invalid and prevents subsequent operations from being appended.
          *
          * @param type Operation to emit.
          * @param target Destination particle attribute.
          * @param operands Typed operands in operation-definition order.
          */
-        void Emit(EOperationType type, EParticleAttribute target, std::initializer_list<SGPUOperand> operands);
+        void Emit(
+            EOperationType type,
+            EParticleAttribute target,
+            std::initializer_list<SGPUOperand> operands
+        );
+
+        /**
+         * @brief Appends a distance constraint to execute after position integration.
+         *
+         * Update modules use this method to schedule constraints independently of their
+         * position in the authored module list.
+         *
+         * @param constraint Values to validate and copy into the compiled snapshot.
+         */
+        void EmitDistanceConstraint(const SDistanceConstraint& constraint);
 
         /**
          * @brief Compile a scalar literal or named parameter binding.
@@ -149,6 +149,10 @@ namespace Elixir::Aether::Modules
 
         /**
          * @brief Compile an unsigned integer literal or named parameter binding.
+         *
+         * Float parameters convert numerically and require an integer default in [0, 2^32).
+         * Invalid runtime float values resolve to zero. UInt parameters retain all their bits.
+         *
          * @param value Literal used when no named parameter matches.
          * @param parameter Optional parameter name; empty selects the literal.
          * @return The operand, or an invalid operand that Emit rejects when compilation fails.
@@ -182,16 +186,39 @@ namespace Elixir::Aether::Modules
          */
         SGPUOperand Curve(std::string_view name);
 
+        /**
+         * @brief Finds a parameter available to this emitter.
+         *
+         * The lookup first checks the emitter-local name, then the system name.
+         *
+         * @param name Authored parameter name.
+         * @return The compiled parameter index, or UINT32_MAX when not found.
+         */
+        uint32_t FindParameter(std::string_view name) const;
+
+        /**
+         * @brief Finds the first compiled parameter for a curve.
+         *
+         * The lookup first checks the emitter-local curve, then the system curve.
+         *
+         * @param name Authored curve name.
+         * @return The compiled parameter index, or UINT32_MAX when not found.
+         */
+        uint32_t FindCurve(std::string_view name) const;
+
+        /** @brief Report whether all operand and operation compilation steps succeeded. */
+        bool IsValid() const { return m_Valid; }
+
     private:
         /**
          * @brief Intern typed literal words or resolve a named parameter binding.
-         * @param type Logical operand type.
+         * @param input Logical operand type.
          * @param words Raw literal words used when no parameter matches.
          * @param parameter Optional parameter name to resolve.
          * @return The operand, or an invalid operand for a type mismatch or range overflow.
          */
         SGPUOperand Literal(
-            EOperandInput type,
+            EOperandInput input,
             std::span<const uint32_t> words,
             std::string_view parameter
         );
@@ -200,6 +227,8 @@ namespace Elixir::Aether::Modules
         const std::vector<SCompiledParameter>& m_Parameters;
         std::string_view m_EmitterName;
         float m_GravityScale;
+
+        bool m_Valid = true;
 
         // Includes the logical type in each key to preserve literal identity.
         std::map<std::array<uint32_t, 5>, uint32_t> m_Literals;
@@ -219,7 +248,7 @@ namespace Elixir::Aether::Modules
         virtual ~Module();
 
         /**
-         * @brief Append this module's GPU operations to the supplied context.
+         * @brief Appends this module's operations or constraints to the supplied context.
          * @param context Compilation context that receives operations and resolves parameters.
          */
         virtual void Compile(ModuleCompileContext& context) const = 0;

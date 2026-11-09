@@ -14,9 +14,12 @@ namespace Elixir
     class Timestep;
 }
 
+namespace Elixir::Aether { class Manager; }
+
 namespace Elixir::Aether::Simulation
 {
     using namespace Core;
+    using namespace Rendering;
 
     /**
      * @brief Reports the simulation work for the latest frame submission.
@@ -142,6 +145,8 @@ namespace Elixir::Aether::Simulation
         }
 
     private:
+        friend class Elixir::Aether::Manager;
+
         // Owns GPU resources and compute pipelines for one particle-state layout.
         struct SParticleStateLayoutRuntime
         {
@@ -152,12 +157,14 @@ namespace Elixir::Aether::Simulation
             Ref<ComputePipeline> SpawnPipeline;
             Ref<Shader> UpdateShader;
             Ref<ComputePipeline> UpdatePipeline;
+            Ref<Shader> ConstraintShader;
+            Ref<ComputePipeline> ConstraintPipeline;
 
             bool IsReady() const
             {
                 return ParticleStateBuffer &&
                     SpawnShader && SpawnPipeline &&
-                    UpdateShader && UpdatePipeline;
+                    UpdateShader && UpdatePipeline && ConstraintShader && ConstraintPipeline;
             }
         };
 
@@ -187,11 +194,19 @@ namespace Elixir::Aether::Simulation
             std::vector<const SSubmittedSystemInstance*> Instances;
         };
 
-        // Initializes Aether shaders, pipelines, layouts, and shared GPU buffers.
-        void Init(const ShaderLoader* shaderLoader);
+        /**
+         * @brief Initializes the scheduler and particle simulation shaders and pipelines.
+         * @param shaderLoader Loader used to create the simulation shaders.
+         * @return Whether all required shaders loaded successfully.
+         */
+        bool Init(const ShaderLoader* shaderLoader);
 
-        // Create the GPU runtime for the built-in CoreV1 particle-state layout.
-        void CreateCoreV1ParticleStateLayoutRuntime(const ShaderLoader* shaderLoader);
+        /**
+         * @brief Creates the GPU runtime for the built-in CoreV1 particle-state layout.
+         * @param shaderLoader Loader used to create the particle and strand shaders.
+         * @return Whether all required shaders loaded successfully.
+         */
+        bool CreateCoreV1ParticleStateLayoutRuntime(const ShaderLoader* shaderLoader);
 
         // Creates shared GPU buffers sized from the configured resource-pool limits.
         void CreateBuffers();
@@ -248,7 +263,17 @@ namespace Elixir::Aether::Simulation
         );
 
         // Dispatch GPU simulation passes for all instances in one layout batch.
-        void SimulateBatch(const Ref<CommandBuffer>& cmd, const SSimulationBatch& batch);
+        /**
+         * @brief Records particle updates and optional connection constraints.
+         * @param cmd Command buffer receiving the dispatches.
+         * @param batch Instances sharing the same particle layout.
+         * @param deltaSeconds Duration of this simulation step, in seconds.
+         */
+        void SimulateBatch(
+            const Ref<CommandBuffer>& cmd,
+            const SSimulationBatch& batch,
+            float deltaSeconds
+        );
 
         // Makes particle writes visible to the graphics pipeline.
         void PublishRenderBarrier(const Ref<CommandBuffer>& cmd, EParticleStateLayout layout) const;
@@ -265,6 +290,14 @@ namespace Elixir::Aether::Simulation
         // Clears persistent particle state before a released allocation is reused.
         void ClearParticleAllocation(const SSystemInstanceAllocation& allocation);
 
+        // Records ordered simulation steps with separate GPU time values for each step.
+        Ref<const RenderFrame> RecordSteps(
+            const FrameSubmission& submission,
+            const Ref<CommandBuffer>& cmd,
+            std::span<const float> steps,
+            float initialTime
+        );
+
         SResourcePoolLimits m_Limits;
         ParticleStateLayoutRegistry m_ParticleStateLayouts;
         std::vector<SParticleStateLayoutRuntime> m_ParticleStateLayoutRuntimes;
@@ -276,6 +309,12 @@ namespace Elixir::Aether::Simulation
             std::vector<SSystemInstanceAllocation>,
             GraphicsContext::FRAMES
         > m_DeferredRetirements;
+
+        // Retains parameter uploads until their frame slot is safe to reuse.
+        std::array<
+            std::vector<Ref<StagingBuffer>>,
+            GraphicsContext::FRAMES
+        > m_ParameterUploads;
 
         Ref<StorageBuffer> m_EmitterStateBuffer;
         Ref<StorageBuffer> m_SpawnRequestBuffer;
@@ -301,12 +340,11 @@ namespace Elixir::Aether::Simulation
         Ref<Shader> m_SchedulerFinalizeShader;
         Ref<ComputePipeline> m_SchedulerFinalizePipeline;
 
-        float m_LastDeltaTimeSeconds = 0.0f;
-        float m_ElapsedTimeSeconds = 0.0f;
-
         uint64_t m_SubmissionSerial = 0;
         SSimulationMetrics m_LastMetrics{};
 
         const GraphicsContext* m_GraphicsContext = nullptr;
+        float m_LastDeltaTimeSeconds = 0.0f;
+        float m_ElapsedTimeSeconds = 0.0f;
     };
 }

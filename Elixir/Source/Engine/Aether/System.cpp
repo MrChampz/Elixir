@@ -33,6 +33,16 @@ namespace Elixir::Aether
         return nullptr;
     }
 
+    void System::Swap(System& other)
+    {
+        using std::swap;
+        swap(m_Name, other.m_Name);
+        swap(m_Parameters, other.m_Parameters);
+        swap(m_Curves, other.m_Curves);
+        swap(m_ColorCurves, other.m_ColorCurves);
+        swap(m_Emitters, other.m_Emitters);
+    }
+
     std::vector<SParameter> System::BuildExposedParameters() const
     {
         auto parameters = m_Parameters.Compile();
@@ -61,11 +71,11 @@ namespace Elixir::Aether
         return *found;
     }
 
-    SCompiledSystem System::Compile() const
+    std::optional<SCompiledSystem> System::Compile() const
     {
         SCompiledSystem system;
         system.SourceId = m_UUID;
-        system.CompilationRevision = ++m_CompilationRevision;
+        system.CompilationRevision = m_CompilationRevision + 1;
 
         auto parameters = BuildExposedParameters();
 
@@ -121,14 +131,15 @@ namespace Elixir::Aether
         }
 
         system.Parameters = CompileParameters(parameters);
-        if (system.Parameters.size() != parameters.size()) return system;
+        if (system.Parameters.size() != parameters.size())
+            return std::nullopt;
 
         system.DefaultParameterWords = PackParameterValues(system.Parameters);
 
         if (system.DefaultParameterWords.size() > OperandIndexMask)
         {
             EE_CORE_ERROR("Aether parameter table exceeds the operand word range.");
-            return system;
+            return std::nullopt;
         }
 
         uint32_t localParticleOffset = 0;
@@ -136,11 +147,16 @@ namespace Elixir::Aether
 
         for (const auto& emitter : m_Emitters)
         {
-            auto compiled = emitter->Compile(
+            auto result = emitter->Compile(
                 m_Parameters,
                 system.Parameters,
                 system.ModuleData
             );
+
+            if (!result)
+                return std::nullopt;
+
+            auto compiled = std::move(*result);
             compiled.LocalParticleOffset = localParticleOffset;
 
             localParticleOffset += compiled.MaxParticles;
@@ -204,6 +220,7 @@ namespace Elixir::Aether
             );
         }
 
+        ++m_CompilationRevision;
         return system;
     }
 }

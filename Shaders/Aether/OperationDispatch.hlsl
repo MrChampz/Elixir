@@ -9,7 +9,7 @@
 #include "Operations/SetPositionOnCircle.hlsl"
 #include "Operations/SetPositionCircularPath.hlsl"
 #include "Operations/SetPositionVortexRibbonPath.hlsl"
-#include "Operations/SetRibbonIdFromSpawnOrder.hlsl"
+#include "Operations/SetGroupIdFromSpawnOrder.hlsl"
 #include "Operations/AddWithDelta.hlsl"
 #include "Operations/Dampen.hlsl"
 #include "Operations/LerpOverLife.hlsl"
@@ -22,6 +22,7 @@
 #include "Operations/Clamp.hlsl"
 #include "Operations/CopyFromAttribute.hlsl"
 #include "Operations/ApplyVortex.hlsl"
+#include "Operations/SampleCurlNoise.hlsl"
 
 void ExecuteOperation(
     inout SOperationExecutor executor,
@@ -30,7 +31,9 @@ void ExecuteOperation(
     inout SOperationExecutorContext context
 )
 {
-    if (operation.Type == Operation_SetLiteral)
+    if (operation.Type == Operation_SampleCurlNoise)
+        SampleCurlNoise(executor, resolver, context);
+    else if (operation.Type == Operation_SetLiteral)
         SetLiteral(executor, resolver, context);
     else if (operation.Type == Operation_RandomRange)
         RandomRange(executor, resolver, context);
@@ -46,8 +49,8 @@ void ExecuteOperation(
         SetPositionCircularPath(executor, resolver, context);
     else if (operation.Type == Operation_SetPositionVortexRibbonPath)
         SetPositionVortexRibbonPath(executor, resolver, context);
-    else if (operation.Type == Operation_SetRibbonIdFromSpawnOrder)
-        SetRibbonIdFromSpawnOrder(executor, resolver, context);
+    else if (operation.Type == Operation_SetGroupIdFromSpawnOrder)
+        SetGroupIdFromSpawnOrder(executor, resolver, context);
     else if (operation.Type == Operation_AddWithDelta)
         AddWithDelta(executor, resolver, context);
     else if (operation.Type == Operation_Dampen)

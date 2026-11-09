@@ -1,13 +1,13 @@
 #include "epch.h"
 #include "Effect.h"
 
-#include <limits>
-#include <simdjson.h>
-#include <magic_enum/magic_enum.hpp>
-
 #include <Engine/Aether/Effect/MaterialDescription.h>
 #include <Engine/Aether/Effect/MaterialFactory.h>
 #include <Engine/Aether/Effect/ModuleRegistry.h>
+#include <Engine/Aether/Rendering/StrandRenderConfig.h>
+
+#include <simdjson.h>
+#include <magic_enum/magic_enum.hpp>
 
 namespace Elixir::Aether::Effect
 {
@@ -25,6 +25,19 @@ namespace Elixir::Aether::Effect
             Ref<System> Parse(od::object& root);
 
         private:
+            // Reads the optional authoring toggle without hiding invalid values.
+            bool IsEnabled(od::object& object)
+            {
+                if (!HasField(object, "enabled"))
+                    return true;
+
+                bool enabled = true;
+                if (object["enabled"].get_bool().get(enabled))
+                    Fail("Field 'enabled' must be a boolean.");
+
+                return enabled;
+            }
+
             EParticleRenderMode ParseRenderMode(od::object& object, const std::string_view key)
             {
                 constexpr auto result = EParticleRenderMode::Sprite;
@@ -40,6 +53,91 @@ namespace Elixir::Aether::Effect
 
                 Fail("Unknown render mode '{}'.", value);
                 return result;
+            }
+
+            // Reads particle death policy independently of authored lifetime values.
+            void ParseParticleState(Emitter& emitter, od::object& json)
+            {
+                if (!HasField(json, "particleState"))
+                    return;
+
+                od::object state;
+                if (json["particleState"].get_object().get(state))
+                {
+                    Fail("'particleState' must be an object.");
+                    return;
+                }
+
+                if (!HasField(state, "killOnLifetimeExpired"))
+                    return;
+
+                bool enabled = true;
+                if (state["killOnLifetimeExpired"].get_bool().get(enabled))
+                {
+                    Fail("'killOnLifetimeExpired' must be a boolean.");
+                    return;
+                }
+
+                emitter.SetKillOnLifetimeExpired(enabled);
+            }
+
+            /**
+             * @brief Reads execution settings for constraint modules.
+             * @param emitter Emitter receiving solver settings.
+             * @param json Emitter definition.
+             */
+            void ParseSolver(Emitter& emitter, od::object& json)
+            {
+                if (!HasField(json, "solver")) return;
+
+                od::object object;
+                if (json["solver"].get_object().get(object))
+                {
+                    Fail("'solver' must be an object.");
+                    return;
+                }
+
+                SSolverConfig config;
+                if (HasField(object, "iterations"))
+                    config.Iterations = RequireUInt(object, "iterations");
+
+                if (!Failed() && !emitter.SetSolverConfig(config))
+                    Fail("Invalid constraint solver configuration.");
+            }
+
+            /**
+             * @brief Reads tube rendering configuration.
+             * @param emitter Emitter receiving the rendering configuration.
+             * @param json Emitter definition.
+             */
+            void ParseStrand(Emitter& emitter, od::object& json)
+            {
+                if (!HasField(json, "strand")) return;
+
+                od::object object;
+                if (json["strand"].get_object().get(object))
+                {
+                    Fail("'strand' must be an object.");
+                    return;
+                }
+
+                SStrandRenderConfig config;
+                if (HasField(object, "maxPoints"))
+                    config.MaxPoints = RequireUInt(object, "maxPoints");
+                if (HasField(object, "orderStep"))
+                    config.OrderStep = RequireUInt(object, "orderStep");
+                if (HasField(object, "widthScale"))
+                    config.WidthScale = RequireFloat(object, "widthScale");
+                if (HasField(object, "radialSegments"))
+                    config.RadialSegments = RequireUInt(object, "radialSegments");
+                if (HasField(object, "subdivisions"))
+                    config.Subdivisions = RequireUInt(object, "subdivisions");
+
+                if (Failed()) return;
+
+                const auto renderConfig = CreateRef<const SStrandRenderConfig>(config);
+                if (!emitter.SetRenderConfig(renderConfig))
+                    Fail("Invalid strand rendering configuration.");
             }
 
             /* Parameter/curve blocks */
@@ -260,7 +358,7 @@ namespace Elixir::Aether::Effect
                 auto module = ModuleRegistry::Create(type, *this, json);
                 if (Failed()) return;
 
-                const auto kind = phase == EModulePhase::Spawn ? "spawn" : "update";
+                const auto kind = magic_enum::enum_name(phase);
                 if (!module)
                 {
                     Fail("Unsupported {} module type '{}'.", kind, type);
@@ -276,11 +374,18 @@ namespace Elixir::Aether::Effect
                 emitter.AddModule(std::move(module));
             }
 
+            /**
+             * @brief Loads enabled modules for one execution phase.
+             * @param parent Emitter definition containing the module array.
+             * @param key Name of the module array.
+             * @param emitter Emitter receiving the modules.
+             * @param phase Required execution phase for every module in the array.
+             */
             void LoadModules(
                 od::object& parent,
                 std::string_view key,
                 Emitter& emitter,
-                const bool spawn
+                const EModulePhase phase
             )
             {
                 if (Failed()) return;
@@ -307,7 +412,8 @@ namespace Elixir::Aether::Effect
                         return;
                     }
 
-                    BuildModule(emitter, module, spawn ? EModulePhase::Spawn : EModulePhase::Update);
+                    if (IsEnabled(module))
+                        BuildModule(emitter, module, phase);
                 }
             }
 
@@ -362,12 +468,27 @@ namespace Elixir::Aether::Effect
                 desc.Emissive = glm::vec3(emissive);
                 desc.BaseColorTexturePath = ParseString(material, "texture");
 
+                if (HasField(material, "blendMode"))
+                {
+                    const auto value = RequireString(material, "blendMode");
+                    const auto blend = magic_enum::enum_cast<EMaterialBlendMode>(value);
+
+                    if (!blend)
+                    {
+                        Fail("Unknown material blend mode '{}'.", value);
+                        return std::nullopt;
+                    }
+
+                    desc.BlendMode = *blend;
+                }
+
                 return desc;
             }
 
             void ParseEmitter(const Ref<System>& system, od::object& json)
             {
                 if (Failed()) return;
+                if (!IsEnabled(json) || Failed()) return;
 
                 const std::string name = RequireString(json, "name");
                 const auto renderMode = ParseRenderMode(json, "renderMode");
@@ -378,6 +499,23 @@ namespace Elixir::Aether::Effect
 
                 auto& emitter = system->AddEmitter(name, maxParticles, spawnRate.Value);
                 emitter.SetRenderMode(renderMode);
+
+                if (HasField(json, "simulationSpace"))
+                {
+                    const auto value = RequireString(json, "simulationSpace");
+                    const auto space = magic_enum::enum_cast<EParticleSimulationSpace>(value);
+                    if (!space) { Fail("Unknown simulation space '{}'.", value); return; }
+                    emitter.SetSimulationSpace(*space);
+                }
+
+                ParseParticleState(emitter, json);
+                if (Failed()) return;
+
+                ParseSolver(emitter, json);
+                if (Failed()) return;
+
+                ParseStrand(emitter, json);
+                if (Failed()) return;
 
                 LoadParameters(json, emitter.GetParameters());
                 if (Failed()) return;
@@ -425,8 +563,8 @@ namespace Elixir::Aether::Effect
                 LoadParameters(json, emitter.GetParameters());
                 LoadCurves(json, emitter.GetCurves());
                 LoadColorCurves(json, emitter.GetColorCurves());
-                LoadModules(json, "spawnModules", emitter, true);
-                LoadModules(json, "updateModules", emitter, false);
+                LoadModules(json, "spawnModules", emitter, EModulePhase::Spawn);
+                LoadModules(json, "updateModules", emitter, EModulePhase::Update);
             }
 
         };
@@ -472,9 +610,8 @@ namespace Elixir::Aether::Effect
 
     Ref<System> LoadEffectFile(const std::filesystem::path& filepath)
     {
-        od::parser parser;
-
         auto json = simdjson::padded_string::load(filepath.string());
+
         if (const auto error = json.error())
         {
             const auto message = simdjson::error_message(error);
@@ -482,28 +619,42 @@ namespace Elixir::Aether::Effect
             return nullptr;
         }
 
-        auto document = parser.iterate(json.value());
-        if (const auto error = document.error())
+        return ParseEffect(std::string_view(json.value().data(), json.value().size()));
+    }
+
+    Ref<System> ParseEffect(const std::string_view source, std::string* error)
+    {
+        if (error) error->clear();
+
+        od::parser parser;
+        const simdjson::padded_string json(source);
+        auto document = parser.iterate(json);
+
+        if (const auto parseError = document.error())
         {
-            const auto message = simdjson::error_message(error);
-            EE_CORE_ERROR("Failed to parse effect asset '{}': {}", filepath.string(), message)
+            const auto message = simdjson::error_message(parseError);
+            EE_CORE_ERROR("Failed to parse effect data: {}", message)
+            if (error) *error = message;
             return nullptr;
         }
 
         od::object root;
         if (document.get_object().get(root))
         {
-            EE_CORE_ERROR("Effect asset root must be an object: {}", filepath.string())
+            EE_CORE_ERROR("Effect asset root must be an object.")
+            if (error) *error = "Effect asset root must be an object.";
             return nullptr;
         }
 
         EffectParser effectParser;
         auto system = effectParser.Parse(root);
+
         if (effectParser.Failed())
         {
             EE_CORE_ERROR("{}", effectParser.GetError());
-            EE_CORE_ERROR("    in effect asset: {}", filepath.string());
+            if (error) *error = effectParser.GetError();
         }
+
         return system;
     }
 }

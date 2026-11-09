@@ -1,4 +1,7 @@
 #include <gtest/gtest.h>
+#include <atomic>
+#include <thread>
+#include <type_traits>
 using namespace testing;
 
 #include "ManagerTestUtils.h"
@@ -147,4 +150,27 @@ TEST(RenderGateTest, HiddenRootsDoNotPublishDrawCommands)
     EXPECT_FALSE(manager.CaptureFrame());
     root->SetVisibility(EVisibility::Visible);
     EXPECT_TRUE(manager.CaptureFrame());
+}
+
+TEST(RenderGateTest, CaptureFrameAppliesCurrentPresentation)
+{
+    const auto box = CreateRef<VerticalBox>();
+    box->SetBackgroundColor(EStyleLayer::Normal, SColor(1, 0, 0, 1));
+    Manager manager;
+    manager.SetRoot(box);
+    manager.ArrangeLayout({100, 100});
+    const auto first = manager.CaptureFrame();
+    ASSERT_TRUE(first);
+    ASSERT_FALSE(first->GetCommands().empty());
+    const auto original = first->GetCommands().front();
+    box->SetOpacity(0.25f);
+    box->SetRenderOffset({12, 5});
+    const auto next = manager.CaptureFrame();
+    ASSERT_TRUE(next);
+    ASSERT_FALSE(next->GetCommands().empty());
+    const auto& command = next->GetCommands().front();
+    EXPECT_FLOAT_EQ(command.Color.A, original.Color.A * 0.25f);
+    EXPECT_EQ(command.Geometry.Position, original.Geometry.Position + glm::vec2(12, 5));
+    manager.SetRoot(nullptr);
+    EXPECT_FALSE(manager.CaptureFrame());
 }

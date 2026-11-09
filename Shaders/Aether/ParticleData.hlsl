@@ -9,7 +9,7 @@ struct SGPUParticle
     float  Age;
     float4 Transform;       // x = rotation, y = scale
     float3 Tangent;
-    uint   RibbonId;
+    uint   GroupId;
     float4 Color;
     uint   EmitterIndex;
     uint   LinkOrder;
@@ -33,7 +33,7 @@ struct SGPUEmitter
     float BurstIntervalSeconds;
     uint  BurstCount;
     uint  IsTriggerDriven;
-    uint  Padding0;
+    uint  KillOnLifetimeExpired;
     uint  Padding1;
 };
 

@@ -4,12 +4,36 @@
 namespace Elixir::Aether
 {
     Emitter::Emitter(
-        const std::string& name,
+        std::string name,
         const uint32_t maxParticles,
         const float spawnRate
-    ) : m_Name(name),
+    ) : m_Name(std::move(name)),
         m_MaxParticles(maxParticles),
         m_SpawnRate(spawnRate) {}
+
+    bool Emitter::SetSolverConfig(const SSolverConfig& config)
+    {
+        if (!config.IsValid())
+        {
+            EE_CORE_ERROR("Invalid constraint solver configuration for emitter '{}'.", m_Name)
+            return false;
+        }
+
+        m_Solver = config;
+        return true;
+    }
+
+    bool Emitter::SetRenderConfig(Ref<const SEmitterRenderConfig> config)
+    {
+        if (config && !config->IsValid())
+        {
+            EE_CORE_ERROR("Invalid render configuration for emitter '{}'.", m_Name);
+            return false;
+        }
+
+        m_RenderConfig = std::move(config);
+        return true;
+    }
 
     void Emitter::SetMaterial(const Ref<Material>& material)
     {
@@ -34,7 +58,7 @@ namespace Elixir::Aether
         m_TriggerDelaySeconds = delaySeconds;
     }
 
-    SCompiledEmitter Emitter::Compile(
+    std::optional<SCompiledEmitter> Emitter::Compile(
         const ParameterStore& paramStore,
         const std::vector<SCompiledParameter>& params,
         SCompiledModuleData& program
@@ -43,6 +67,9 @@ namespace Elixir::Aether
         SCompiledEmitter emitter;
         emitter.Id = m_Id;
         emitter.RenderMode = m_RenderMode;
+        emitter.Solver = m_Solver;
+        emitter.RenderConfig = m_RenderConfig;
+        emitter.KillOnLifetimeExpired = m_KillOnLifetimeExpired;
         emitter.SimulationSpace = m_SimulationSpace;
         emitter.MaxParticles = m_MaxParticles;
         emitter.GravityScale = paramStore.GetFloat("GravityScale", 1.0f);
@@ -85,6 +112,7 @@ namespace Elixir::Aether
 
         emitter.SpawnOperationCount = (uint32_t)program.Operations.size() - emitter.SpawnOperationOffset;
         emitter.UpdateOperationOffset = (uint32_t)program.Operations.size();
+        emitter.ConstraintOffset = uint32_t(program.Constraints.size());
 
         for (const auto& module : m_Modules)
         {
@@ -95,7 +123,12 @@ namespace Elixir::Aether
         }
 
         emitter.UpdateOperationCount = (uint32_t)program.Operations.size() - emitter.UpdateOperationOffset;
+        emitter.ConstraintCount =
+            uint32_t(program.Constraints.size()) - emitter.ConstraintOffset;
+        if (!context.IsValid())
+            return std::nullopt;
 
         return emitter;
     }
+
 }

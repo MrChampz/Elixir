@@ -75,6 +75,8 @@ namespace Elixir
                 Ref<Texture> ClearCoatNormal;
                 Ref<Texture> SheenColor;
                 Ref<Texture> SheenRoughness;
+                Ref<Texture> Transmission;
+                Ref<Texture> Thickness;
             };
 
             // Decode image bytes into a texture.
@@ -469,14 +471,32 @@ namespace Elixir
             material->SetBlendMode(GetBlendMode(source.alphaMode));
             material->SetDoubleSided(source.doubleSided);
 
-            // Cloth and ClearCoat are separate material types; sheen takes precedence.
-            if (source.sheen)
+            // Prefer transmission, then sheen, then clear coat.
+            if (source.transmission && source.transmission->transmissionFactor > 0)
+            {
+                material->SetShadingModel(EMaterialShadingModel::Transmission);
+
+                // Volume boundaries ignore doubleSided; render their entry surface once.
+                if (source.volume && source.volume->thicknessFactor > 0)
+                    material->SetDoubleSided(false);
+            }
+            else if (source.sheen)
                 material->SetShadingModel(EMaterialShadingModel::Cloth);
             else if (source.clearcoat)
                 material->SetShadingModel(EMaterialShadingModel::ClearCoat);
 
             if (source.alphaMode == fastgltf::AlphaMode::Mask)
                 material->SetAlphaCutoff(source.alphaCutoff);
+
+            if (!material->DefineParameter("IOR", {
+                .Kind = EMaterialParameterKind::Value,
+                .ValueType = EMaterialValueType::Float,
+                .DefaultValue = SMaterialParameter::MakeScalar(source.ior),
+            }))
+            {
+                EE_CORE_ERROR("Could not define glTF index of refraction.")
+                return nullptr;
+            }
 
             const auto& pbr = source.pbrData;
             const auto baseColorFactor = glm::vec4(
@@ -603,6 +623,11 @@ namespace Elixir
             }
 
             MaterialGraph graph;
+
+            graph.SetChannel(
+                EMaterialChannel::IOR,
+                graph.AddNode<Parameter>("IOR", EMaterialValueType::Float)
+            );
 
             auto baseColor = graph.AddNode<Parameter>(
                 "BaseColorFactor",
@@ -829,6 +854,136 @@ namespace Elixir
                 graph.SetChannel(EMaterialChannel::SpecularColor, specularColor);
             }
 
+            if (material->GetShadingModel() == EMaterialShadingModel::Transmission)
+            {
+                if (!material->DefineParameter("TransmissionFactor", {
+                    .Kind = EMaterialParameterKind::Value,
+                    .ValueType = EMaterialValueType::Float,
+                    .DefaultValue = SMaterialParameter::MakeScalar(
+                        source.transmission->transmissionFactor
+                    ),
+                }))
+                {
+                    EE_CORE_ERROR("Could not define glTF transmission parameters.")
+                    return nullptr;
+                }
+
+                auto transmission = graph.AddNode<Parameter>(
+                    "TransmissionFactor",
+                    EMaterialValueType::Float
+                );
+
+                if (textures.Transmission)
+                {
+                    if (!material->DefineParameter("TransmissionTexture", {
+                        .Kind = EMaterialParameterKind::Texture,
+                        .DefaultValue = SMaterialParameter::MakeTexture(textures.Transmission),
+                    }))
+                    {
+                        EE_CORE_ERROR("Could not define glTF transmission texture.")
+                        return nullptr;
+                    }
+
+                    const auto sample = AddTextureSample(
+                        graph,
+                        *material,
+                        "TransmissionTexture",
+                        *source.transmission->transmissionTexture,
+                        ETextureSampleType::Mask
+                    );
+
+                    const auto red = graph.AddNode<ComponentMask>(0);
+                    graph.Connect(sample, red, 0);
+
+                    const auto multiply = graph.AddNode<Multiply>();
+                    graph.Connect(transmission, multiply, 0);
+                    graph.Connect(red, multiply, 1);
+
+                    transmission = multiply;
+                }
+
+                graph.SetChannel(EMaterialChannel::Transmission, transmission);
+
+                if (source.volume)
+                {
+                    const auto& volume = *source.volume;
+
+                    auto thicknessResult = material->DefineParameter("ThicknessFactor", {
+                        .Kind = EMaterialParameterKind::Value,
+                        .ValueType = EMaterialValueType::Float,
+                        .DefaultValue = SMaterialParameter::MakeScalar(volume.thicknessFactor),
+                    });
+
+                    const auto attDistResult = material->DefineParameter("AttenuationDistance", {
+                        .Kind = EMaterialParameterKind::Value,
+                        .ValueType = EMaterialValueType::Float,
+                        .DefaultValue = SMaterialParameter::MakeScalar(volume.attenuationDistance),
+                    });
+
+                    const auto attColorResult = material->DefineParameter("AttenuationColor", {
+                        .Kind = EMaterialParameterKind::Value,
+                        .ValueType = EMaterialValueType::Float3,
+                        .DefaultValue = SMaterialParameter::MakeVector({
+                            volume.attenuationColor.x(), volume.attenuationColor.y(),
+                            volume.attenuationColor.z(), 0.0f,
+                        })
+                    });
+
+                    if (!thicknessResult || !attDistResult || !attColorResult)
+                    {
+                        EE_CORE_ERROR("Could not define glTF volume parameters.")
+                        return nullptr;
+                    }
+
+                    auto thickness = graph.AddNode<Parameter>(
+                        "ThicknessFactor",
+                        EMaterialValueType::Float
+                    );
+
+                    if (textures.Thickness)
+                    {
+                        if (!material->DefineParameter("ThicknessTexture", {
+                            .Kind = EMaterialParameterKind::Texture,
+                            .DefaultValue = SMaterialParameter::MakeTexture(textures.Thickness),
+                        }))
+                        {
+                            EE_CORE_ERROR("Could not define glTF thickness texture.")
+                            return nullptr;
+                        }
+
+                        const auto sample = AddTextureSample(
+                            graph,
+                            *material,
+                            "ThicknessTexture",
+                            *volume.thicknessTexture,
+                            ETextureSampleType::Mask
+                        );
+
+                        const auto green = graph.AddNode<ComponentMask>(1);
+                        graph.Connect(sample, green, 0);
+
+                        const auto multiply = graph.AddNode<Multiply>();
+                        graph.Connect(thickness, multiply, 0);
+                        graph.Connect(green, multiply, 1);
+
+                        thickness = multiply;
+                    }
+                    graph.SetChannel(EMaterialChannel::Thickness, thickness);
+                    graph.SetChannel(EMaterialChannel::AttenuationDistance,
+                        graph.AddNode<Parameter>(
+                            "AttenuationDistance",
+                            EMaterialValueType::Float
+                        )
+                    );
+                    graph.SetChannel(EMaterialChannel::AttenuationColor,
+                        graph.AddNode<Parameter>(
+                            "AttenuationColor",
+                            EMaterialValueType::Float3
+                        )
+                    );
+                }
+            }
+
             if (source.clearcoat && !source.sheen)
             {
                 auto clearCoat = graph.AddNode<Parameter>(
@@ -894,7 +1049,8 @@ namespace Elixir
 
                 // In glTF, clearCoatNormalTexture belongs to the external
                 // clear-coat layer.
-                if (textures.ClearCoatNormal)
+                if (textures.ClearCoatNormal &&
+                    material->GetShadingModel() == EMaterialShadingModel::ClearCoat)
                 {
                     EE_CORE_ASSERT(material->DefineParameter("ClearCoatNormalTexture", {
                         .Kind = EMaterialParameterKind::Texture,
@@ -1054,6 +1210,40 @@ namespace Elixir
                     );
                 }
 
+                if (source.transmission && source.transmission->transmissionTexture)
+                {
+                    STexture2DCreateInfo info;
+                    info.Format = EImageFormat::R8G8B8A8_UNORM;
+
+                    textures.Transmission = LoadTexture(
+                        source.transmission->transmissionTexture->textureIndex,
+                        info
+                    );
+
+                    if (!textures.Transmission)
+                    {
+                        EE_CORE_ERROR("Could not load glTF transmission texture.")
+                        return {};
+                    }
+                }
+
+                if (source.volume && source.volume->thicknessTexture)
+                {
+                    STexture2DCreateInfo info;
+                    info.Format = EImageFormat::R8G8B8A8_UNORM;
+
+                    textures.Thickness = LoadTexture(
+                        source.volume->thicknessTexture->textureIndex,
+                        info
+                    );
+
+                    if (!textures.Thickness)
+                    {
+                        EE_CORE_ERROR("Could not load glTF thickness texture.")
+                        return {};
+                    }
+                }
+
                 if (source.specular)
                 {
                     if (source.specular->specularTexture)
@@ -1134,7 +1324,14 @@ namespace Elixir
                     }
                 }
 
-                materials.push_back(CreateSurfaceMaterial(source, i, textures));
+                auto material = CreateSurfaceMaterial(source, i, textures);
+                if (!material)
+                {
+                    EE_CORE_ERROR("Could not create glTF material {}.", i)
+                    return {};
+                }
+
+                materials.push_back(std::move(material));
             }
 
             return materials;
