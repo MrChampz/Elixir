@@ -2,7 +2,6 @@
 #include "../EditorStyles.h"
 
 #include <Engine/Animation/SequenceNode.h>
-#include <Engine/Animation/BlendSpaceNode.h>
 #include <Engine/Animation/AnimationEvaluation.h>
 #include <Engine/Font/FontManager.h>
 
@@ -11,6 +10,8 @@
 #include <cmath>
 #include <fstream>
 #include <sstream>
+#include <format>
+#include <Engine/Icon/IconManager.h>
 
 #ifdef EE_PLATFORM_WINDOWS
 #include <windows.h>
@@ -18,7 +19,7 @@
 
 namespace
 {
-    constexpr glm::vec2 NodeSize{180, 74};
+    constexpr glm::vec2 NodeSize{210, 150};
 
     /** @brief Create visible text and interaction states for graph action buttons. */
     GUI::SButtonStyle GraphButtonStyle()
@@ -27,7 +28,7 @@ namespace
         auto style = chrome.PanelHeaderButton;
         style.Normal.Foreground = chrome.TextPrimary;
         style.Hovered = style.Normal;
-        style.Hovered->Background.Color = {0.18f, 0.21f, 0.27f, 1};
+        style.Hovered->Background = chrome.PanelSection.Normal.Background;
         style.Pressed = style.Hovered;
         style.Focused = style.Hovered;
         style.Disabled = style.Normal;
@@ -61,9 +62,9 @@ namespace
     {
         const auto button = CreateRef<GUI::Button>(title);
         button->SetStyle(GraphButtonStyle());
-        button->SetFontSize(12);
+        button->SetFontSize(11);
         button->OnClick(callback);
-        list->AddChild(button).SetFixedSize(30).SetHorizontalAlignment(
+        list->AddChild(button).SetFixedSize(28).SetHorizontalAlignment(
             GUI::EHorizontalAlignment::Fill
         );
     }
@@ -76,9 +77,11 @@ namespace
     void Caption(const Ref<GUI::VerticalBox>& list, const std::string& text)
     {
         const auto label = CreateRef<GUI::TextBlock>(text);
-        label->SetFontSize(12);
+        label->SetFontSize(10);
         label->SetColor(EditorStyle::Get().TextSecondary);
-        list->AddChild(label).SetFixedSize(26);
+        list->AddChild(label).SetFixedSize(22).SetHorizontalAlignment(
+            GUI::EHorizontalAlignment::Fill
+        );
     }
 
     /**
@@ -95,262 +98,482 @@ namespace
     {
         const auto field = CreateRef<GUI::TextField>(value);
         field->SetStyle(EditorStyle::Get().TextField);
-        field->SetFontSize(13);
+        field->SetFontSize(12);
         field->OnChange(callback);
         list->AddChild(field).SetFixedSize(30).SetHorizontalAlignment(
             GUI::EHorizontalAlignment::Fill
         );
     }
+    /** Uses the same compact button sizing as the VFX workbench toolbar. */
+    class AnimationToolbarButton final : public GUI::Button
+    {
+      protected:
+        /**
+         * @brief Measures toolbar content with the VFX minimum height.
+         * @param availableSize Space offered by the toolbar.
+         */
+        glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) override
+        {
+            const auto padding = GetPadding();
+            const glm::vec2 inset{padding.GetTotalHorizontal(), padding.GetTotalVertical()};
+            const auto content = GetContentSlot()->GetWidget();
+            const auto desired =
+                content ? content->Measure(glm::max(availableSize - inset, glm::vec2(0)))
+                        : glm::vec2(0);
+            return glm::max(desired + inset, glm::vec2(0, 24));
+        }
+    };
+
+    /**
+     * @brief Creates an editor label with shared typography.
+     * @param text Visible label.
+     * @param size Font size in GUI units.
+     */
+    Ref<GUI::TextBlock> WorkspaceText(const std::string& text, float size = 11)
+    {
+        const auto label = CreateRef<GUI::TextBlock>(text);
+        label->SetFontSize(size);
+        label->SetColor(EditorStyle::Get().TextPrimary);
+        return label;
+    }
+
+    /**
+     * @brief Loads an icon using the editor's asset root and tint.
+     * @param name Icon filename without its extension.
+     */
+    Ref<GUI::Icon> WorkspaceIcon(const std::string& name)
+    {
+        const auto icon = CreateRef<GUI::Icon>();
+        const auto path = std::filesystem::path(ELIXIR_EDITOR_PROJECT_ROOT) / "Assets" /
+                          "Icons" / (name + ".svg");
+        icon->SetIcon(IconManager::Load(path.string()));
+        icon->SetStyle(EditorStyle::Get().SecondaryIcon);
+        icon->SetSize({12, 12});
+        return icon;
+    }
+
+    /**
+     * @brief Creates a compact command with the same chrome as the VFX editor.
+     * @param title Visible command label, or empty for an icon-only control.
+     * @param icon Icon filename without its extension.
+     * @param callback Action to invoke.
+     */
+    Ref<GUI::Button> WorkspaceCommand(
+        const std::string& title,
+        const std::string& icon,
+        std::function<void()> callback
+    )
+    {
+        const auto button = CreateRef<GUI::Button>();
+        button->SetStyle(GraphButtonStyle());
+        button->SetPadding({6, 4});
+        const auto content = CreateRef<GUI::HorizontalBox>();
+        if (!icon.empty())
+        {
+            content->AddChild(WorkspaceIcon(icon))
+                .SetFixedSize(12)
+                .SetVerticalAlignment(GUI::EVerticalAlignment::Center)
+                .SetMargin({0, 0, title.empty() ? 0.0f : 6.0f, 0});
+        }
+        if (!title.empty())
+            content->AddChild(WorkspaceText(title))
+                .SetVerticalAlignment(GUI::EVerticalAlignment::Center);
+        button->SetContent(content);
+        button->OnClick(std::move(callback));
+        return button;
+    }
+
+    /**
+     * @brief Creates a rounded workspace section with an icon and divider.
+     * @param title Section name.
+     * @param icon Icon filename without its extension.
+     */
+    Ref<GUI::VerticalBox> WorkspaceSection(const std::string& title, const std::string& icon)
+    {
+        const auto section = CreateRef<GUI::VerticalBox>();
+        section->SetStyle(EditorStyle::Get().Panel);
+        section->SetPadding({1, 1});
+        const auto header = CreateRef<GUI::HorizontalBox>();
+        header->SetPadding({10, 0});
+        header->AddChild(WorkspaceIcon(icon))
+            .SetFixedSize(12)
+            .SetVerticalAlignment(GUI::EVerticalAlignment::Center)
+            .SetMargin({0, 0, 7, 0});
+        header->AddChild(WorkspaceText(title, 12))
+            .SetFillSize()
+            .SetVerticalAlignment(GUI::EVerticalAlignment::Center);
+        section->AddChild(header).SetFixedSize(29).SetHorizontalAlignment(
+            GUI::EHorizontalAlignment::Fill
+        );
+        const auto divider = CreateRef<GUI::Canvas>();
+        divider->SetStyle(EditorStyle::Get().PanelHeaderBorder);
+        section->AddChild(divider).SetFixedSize(1).SetHorizontalAlignment(
+            GUI::EHorizontalAlignment::Fill
+        );
+        return section;
+    }
+
+    /**
+     * @brief Adds a scrollable property column to a workspace section.
+     * @param section Section receiving the scroll area.
+     */
+    Ref<GUI::VerticalBox> WorkspaceList(const Ref<GUI::VerticalBox>& section)
+    {
+        const auto scroll = CreateRef<GUI::ScrollBox>();
+        scroll->SetStyle(EditorStyle::Get().ScrollBar);
+        section->AddChild(scroll).SetFillSize().SetHorizontalAlignment(
+            GUI::EHorizontalAlignment::Fill
+        );
+        const auto list = CreateRef<GUI::VerticalBox>();
+        list->SetPadding({10, 6});
+        scroll->SetContent(list);
+        return list;
+    }
+
+    /**
+     * @brief Highlights the current workspace tab or navigation row.
+     * @param button Control to style.
+     * @param selected True when this control represents the current selection.
+     */
+    void WorkspaceSelection(const Ref<GUI::Button>& button, bool selected)
+    {
+        auto style = GraphButtonStyle();
+        if (selected)
+            style.Normal.Background = EditorStyle::Get().Selection.Normal.Background;
+        button->SetStyle(style);
+    }
 }
 
-/** Draws and manipulates graph nodes in a clipped, pannable canvas. */
-class AnimationGraphCanvas final : public GUI::Widget
+/** Displays the evaluated skeleton pose using the editor's axis colors. */
+class AnimationPosePreview final : public GUI::Widget
 {
   public:
     /**
-     * @brief Retain the document owned by the containing panel.
-     * @param document Document that outlives this canvas.
+     * @brief Displays the current runtime pose, or the origin when uncompiled.
+     * @param preview Animation whose published pose is read during drawing.
      */
-    explicit AnimationGraphCanvas(AnimationGraphDocument& document) : m_Document(document) {}
-
-    /** Receives state selections; -1 clears the selection. */
-    std::function<void(int)> Select;
-    /** Receives transition selections. */
-    std::function<void(int)> SelectTransition;
-    /** Receives completed node moves. */
-    std::function<void()> Edited;
-    /** Receives resource selections in the pose composition view. */
-    std::function<void(EAnimationAssetKind, int)> SelectAsset;
-    /** Opens the connected state machine's internal graph. */
-    std::function<void()> OpenMachine;
-
-    /**
-     * @brief Select the pose composition or state-machine view.
-     * @param library True to show pose sources and montage actions.
-     * @param kind Selected resource category.
-     * @param index Selected resource index, or -1 for the graph output.
-     */
-    void SetLibraryView(bool library, EAnimationAssetKind kind, int index)
+    void SetPreview(Ref<const Animation> preview)
     {
-        if (m_LibraryView == library && m_AssetKind == kind && m_AssetIndex == index)
-            return;
-        m_LibraryView = library;
-        m_AssetKind = kind;
-        m_AssetIndex = index;
+        m_Preview = std::move(preview);
         MarkRenderDirty();
     }
 
     /**
-     * @brief Set the sampled timeline and blend coordinates for the resource detail view.
-     * @param time Current preview time in seconds.
-     * @param coordinates Current blend-space inputs.
-     * @param blend Compiled resource used to display actual sample weights.
+     * @brief Loads the animation skeleton and frames its reference pose.
+     * @param skeleton Hierarchy shared by the animation sources, or null to clear it.
      */
-    void SetPreview(float time, glm::vec2 coordinates, Ref<const BlendSpace> blend)
+    void SetSkeleton(Ref<const Skeleton> skeleton)
     {
-        if (m_Time == time && m_Coordinates == coordinates && m_Blend == blend)
+        if (m_Skeleton == skeleton)
             return;
-        m_Time = time;
-        m_Coordinates = coordinates;
-        m_Blend = std::move(blend);
+        m_Skeleton = std::move(skeleton);
+        m_ReferencePose.Matrices.clear();
+        m_Center = {};
+        m_Extent = glm::vec2(1);
+        m_GridScale = 1;
+        if (m_Skeleton)
+        {
+            SLocalPose local;
+            for (const auto& bone : m_Skeleton->GetBones())
+                local.LocalTransforms.push_back(bone.ReferenceTransform);
+            if (m_Skeleton->BuildModelPose(local, m_ReferencePose))
+            {
+                glm::vec2 lower = Project(glm::vec3(m_ReferencePose.Matrices.front()[3]));
+                glm::vec2 upper = lower;
+                for (const auto& matrix : m_ReferencePose.Matrices)
+                {
+                    const auto point = Project(glm::vec3(matrix[3]));
+                    lower = glm::min(lower, point);
+                    upper = glm::max(upper, point);
+                }
+                m_Center = (lower + upper) * 0.5f;
+                m_Extent = glm::max(upper - lower, glm::vec2(0.5f));
+                m_GridScale = std::max(m_Extent.x, m_Extent.y) * 0.25f;
+            }
+        }
         MarkRenderDirty();
     }
-
-    /**
-     * @brief Refresh graph selection and runtime highlighting.
-     * @param state Selected state index.
-     * @param transition Selected transition index.
-     * @param active Runtime state name.
-     */
-    void Refresh(int state, int transition, std::string active)
-    {
-        if (m_Selected == state && m_SelectedTransition == transition && m_Active == active)
-            return;
-        m_Selected = state;
-        m_SelectedTransition = transition;
-        m_Active = std::move(active);
-        MarkRenderDirty();
-    }
-
-    /** @brief Reset the canvas camera to the graph origin. */
-    void ResetView()
-    {
-        m_Pan = {32, 60};
-        m_Zoom = 1;
-        MarkRenderDirty();
-    }
-
-    /** @brief Invalidate cached commands after a document edit. */
-    void DocumentChanged() { MarkRenderDirty(); }
-
-    /** @brief Claim mouse events for selection and canvas navigation. */
-    bool CanHandleMouseInput() const override { return IsEnabled(); }
 
   protected:
     /**
-     * @brief Use the available canvas space.
-     * @param availableSize Layout constraint.
+     * @brief Uses the available preview area.
+     * @param availableSize Size offered by the workspace.
      */
     glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) override
     {
-        return glm::min(availableSize, glm::vec2(1200, 800));
+        return glm::min(availableSize, glm::vec2(280, 180));
     }
 
     /**
-     * @brief Draw nodes, directed transition paths, and the grid.
-     * @param batch Destination commands.
-     * @param zOrder First draw layer.
+     * @brief Draws a model-space grid, bone links, and the evaluated root.
+     * @param batch Destination draw commands.
+     * @param zOrder First drawing layer.
      */
     void BuildDrawCommands(GUI::RenderBatch& batch, int zOrder) override
     {
-        const auto& styles = EditorStyle::Get();
-        Rect(batch, m_Geometry, {0.055f, 0.065f, 0.085f, 1}, zOrder);
-        if (m_LibraryView)
+        const auto& style = EditorStyle::Get();
+        batch.AddRect(
+            m_Geometry,
+            style.InspectorField.Normal.Background.Color,
+            {},
+            {},
+            {},
+            {},
+            zOrder
+        );
+        if (!m_Skeleton || m_ReferencePose.Matrices.empty())
         {
-            DrawLibrary(batch, zOrder);
+            batch.AddText(
+                "No animation skeleton",
+                {m_Geometry.Position + glm::vec2(12), m_Geometry.Size - glm::vec2(24)},
+                FontManager::GetDefaultFont(),
+                11,
+                style.TextSecondary,
+                zOrder + 1
+            );
             batch.Clip(m_Geometry);
             return;
         }
-        const float step = 32 * m_Zoom;
-        for (float x = std::fmod(m_Pan.x, step); x < m_Geometry.Size.x; x += step)
+        const float scale = std::min(
+            m_Geometry.Size.x * 0.8f / m_Extent.x,
+            m_Geometry.Size.y * 0.8f / m_Extent.y
+        );
+        const bool evaluated = m_Preview && m_Preview->GetSkeleton() == m_Skeleton;
+        const auto& matrices =
+            evaluated ? m_Preview->GetModelPose().Matrices : m_ReferencePose.Matrices;
+        const auto rootOffset = Project(glm::vec3(matrices.front()[3])) -
+                                Project(glm::vec3(m_ReferencePose.Matrices.front()[3]));
+        const auto center = m_Geometry.Position + m_Geometry.Size * 0.5f;
+        const auto project = [this, center, scale, rootOffset](const glm::vec3& point)
         {
-            for (float y = std::fmod(m_Pan.y, step); y < m_Geometry.Size.y; y += step)
-                Rect(
-                    batch,
-                    {m_Geometry.Position + glm::vec2(x, y), {2, 2}},
-                    {0.15f, 0.17f, 0.21f, 1},
-                    zOrder
-                );
-        }
-        for (size_t i = 0; i < m_Document.Machine.Transitions.size(); ++i)
+            return center + (Project(point) - m_Center - rootOffset) * scale;
+        };
+        const float gridExtent = m_GridScale * 4;
+        for (int index = -4; index <= 4; ++index)
         {
-            const auto [start, end] = Endpoints(i);
-            const auto color = int(i) == m_SelectedTransition
-                                   ? styles.Accent
-                                   : GUI::SColor{0.42f, 0.49f, 0.61f, 1};
-            // Orthogonal lanes separate opposite directions and show destination arrows.
-            const float lane = std::min(start.y, end.y) - (28 + float(i % 4) * 18) * m_Zoom;
-            Line(batch, start, {start.x, lane}, color, zOrder);
-            Line(batch, {start.x, lane}, {end.x, lane}, color, zOrder);
-            Line(batch, {end.x, lane}, end, color, zOrder);
-            Line(batch, end + glm::vec2(-6, -9), end, color, zOrder);
-            Line(batch, end + glm::vec2(6, -9), end, color, zOrder);
-            const auto& transition = m_Document.Machine.Transitions[i];
-            Text(
+            const float offset = index * m_GridScale;
+            Line(
                 batch,
-                std::to_string(i + 1) + "  " + transition.From + " > " + transition.To,
-                {(start.x + end.x) * 0.5f - 70, lane - 18},
-                color,
-                zOrder
+                project({-gridExtent, 0, offset}),
+                project({gridExtent, 0, offset}),
+                style.PanelHeaderBorder.Normal.Background.Color,
+                zOrder + 1
+            );
+            Line(
+                batch,
+                project({offset, 0, -gridExtent}),
+                project({offset, 0, gridExtent}),
+                style.PanelHeaderBorder.Normal.Background.Color,
+                zOrder + 1
             );
         }
-        for (size_t i = 0; i < m_Document.Machine.States.size(); ++i)
+        const auto origin = project({0, 0, 0});
+        const float axisLength = m_GridScale;
+        Line(batch, origin, project({axisLength, 0, 0}), style.AxisX, zOrder + 2);
+        Line(batch, origin, project({0, axisLength, 0}), style.AxisY, zOrder + 2);
+        Line(batch, origin, project({0, 0, axisLength}), style.AxisZ, zOrder + 2);
+        const auto& bones = m_Skeleton->GetBones();
+        for (size_t index = 0; index < matrices.size(); ++index)
         {
-            const auto& state = m_Document.Machine.States[i];
-            const auto rect = NodeRect(i);
-            const bool active = state.Name == m_Active;
-            const auto color = active ? GUI::SColor{0.10f, 0.32f, 0.25f, 1}
-                                      : GUI::SColor{0.12f, 0.15f, 0.20f, 1};
-            Rect(batch, rect, color, zOrder + 1);
-            if (int(i) == m_Selected || active)
-            {
-                Rect(
+            const auto point = project(glm::vec3(matrices[index][3]));
+            const auto parent = bones[index].ParentIndex;
+            if (parent >= 0)
+                Line(
                     batch,
-                    {rect.Position, {rect.Size.x, 3}},
-                    active ? GUI::SColor{0.3f, 0.9f, 0.6f, 1} : styles.Accent,
-                    zOrder + 2
+                    project(glm::vec3(matrices[parent][3])),
+                    point,
+                    style.TextPrimary,
+                    zOrder + 3
                 );
-            }
-            Text(
-                batch,
-                state.Name,
-                rect.Position + glm::vec2(12, 12),
-                styles.TextPrimary,
-                zOrder + 2
-            );
-            const std::string entry =
-                state.Name == m_Document.Machine.InitialState ? "ENTRY  /  " : "";
-            Text(
-                batch,
-                entry + (state.Looping ? "Loop" : "Once"),
-                rect.Position + glm::vec2(12, 42) * m_Zoom,
-                styles.TextSecondary,
-                zOrder + 2
+            batch.AddRect(
+                {point - glm::vec2(2), {4, 4}},
+                style.Accent,
+                glm::vec4(2),
+                {},
+                {},
+                {},
+                zOrder + 4
             );
         }
         batch.Clip(m_Geometry);
     }
 
+  private:
     /**
-     * @brief Select and capture a node drag or background pan.
+     * @brief Projects a skeleton-space position onto the preview plane.
+     * @param point Position in skeleton units.
+     */
+    static glm::vec2 Project(const glm::vec3& point)
+    {
+        return {point.x - point.z * 0.55f, -point.y + point.z * 0.3f};
+    }
+
+    /**
+     * @brief Draws a projected bone or grid segment.
+     * @param batch Destination draw commands.
+     * @param from First endpoint.
+     * @param to Last endpoint.
+     * @param color Segment color.
+     * @param zOrder Drawing layer.
+     */
+    void Line(
+        GUI::RenderBatch& batch,
+        glm::vec2 from,
+        glm::vec2 to,
+        const GUI::SColor& color,
+        int zOrder
+    ) const
+    {
+        const int steps = std::max(1, int(glm::length(to - from)));
+        for (int index = 0; index <= steps; ++index)
+        {
+            const auto point = glm::mix(from, to, float(index) / steps);
+            batch.AddRect({point, {1.5f, 1.5f}}, color, {}, {}, {}, {}, zOrder);
+        }
+    }
+
+    Ref<const Animation> m_Preview;
+    Ref<const Skeleton> m_Skeleton;
+    SModelPose m_ReferencePose;
+    /** Stable reference-pose bounds prevent the camera from moving during playback. */
+    glm::vec2 m_Center{}, m_Extent{1};
+    float m_GridScale = 1;
+};
+
+/** Draws asset references and pose links over the complete document workspace. */
+class AnimationGraphCanvas final : public GUI::Widget
+{
+  public:
+    /**
+     * @brief Retains the graph document owned by the panel.
+     * @param document Document that outlives this canvas.
+     */
+    explicit AnimationGraphCanvas(AnimationGraphDocument& document) : m_Document(document) {}
+
+    /** Receives asset node selections; -1 selects the graph output. */
+    std::function<void(EAnimationAssetKind, int)> SelectAsset;
+    /** Receives selection of the state machine reference. */
+    std::function<void()> SelectMachine;
+    /** Receives a pose source dropped onto the graph output; empty selects the machine. */
+    std::function<void(const std::string&)> ConnectOutput;
+    /** Receives completed moves of authored asset nodes. */
+    std::function<void()> Edited;
+
+    /**
+     * @brief Updates the selected reference without entering its asset editor.
+     * @param kind Selected asset category.
+     * @param index Asset index, or -1 for the output.
+     * @param machine True selects the state machine reference.
+     */
+    void SetSelection(EAnimationAssetKind kind, int index, bool machine)
+    {
+        if (m_AssetKind == kind && m_AssetIndex == index && m_MachineSelected == machine)
+            return;
+        m_AssetKind = kind;
+        m_AssetIndex = index;
+        m_MachineSelected = machine;
+        MarkRenderDirty();
+    }
+
+    /** @brief Fits the graph between the floating tools on its next draw. */
+    void ResetView()
+    {
+        m_FrameRequested = true;
+        MarkRenderDirty();
+    }
+
+    /** @brief Reflows the workspace after floating tool content changes. */
+    void ReflowWorkspace() { MarkLayoutDirty(); }
+
+    /** @brief Invalidates cached nodes and links after a document edit. */
+    void DocumentChanged() { MarkRenderDirty(); }
+
+    /** @brief Claims pointer events for node selection, links, and canvas navigation. */
+    bool CanHandleMouseInput() const override { return IsEnabled(); }
+
+  protected:
+    /**
+     * @brief Uses the complete document viewport.
+     * @param availableSize Size offered by the document tab.
+     */
+    glm::vec2 ComputeDesiredSize(const glm::vec2& availableSize) override
+    {
+        return availableSize;
+    }
+
+    /**
+     * @brief Draws the workbench grid, curved pose links, and asset columns.
+     * @param batch Destination draw commands.
+     * @param zOrder First draw layer.
+     */
+    void BuildDrawCommands(GUI::RenderBatch& batch, int zOrder) override
+    {
+        const auto& style = EditorStyle::Get();
+        const auto nodes = Nodes();
+        if (m_FrameRequested && m_Geometry.Size.x > 0 && m_Geometry.Size.y > 0)
+            Frame(nodes);
+        batch.AddRect(m_Geometry, {0.05f, 0.055f, 0.065f, 1}, {}, {}, {}, {}, zOrder);
+        const float step = 32 * m_Zoom;
+        for (float x = std::fmod(m_Pan.x, step); x < m_Geometry.Size.x; x += step)
+            for (float y = std::fmod(m_Pan.y, step); y < m_Geometry.Size.y; y += step)
+                batch.AddRect(
+                    {m_Geometry.Position + glm::vec2(x, y), {1, 1}},
+                    style.PanelHeaderBorder.Normal.Background.Color,
+                    {},
+                    {},
+                    {},
+                    {},
+                    zOrder
+                );
+        const auto& output = nodes.back();
+        for (const auto& node : nodes)
+        {
+            if (HasPose(node) && node.Source == m_Document.OutputSource)
+                Curve(batch, Pin(node, true), Pin(output, false), zOrder + 1);
+        }
+        if (m_Link >= 0 && size_t(m_Link) < nodes.size())
+            Curve(batch, Pin(nodes[m_Link], true), m_LastMouse, zOrder + 1);
+        for (const auto& node : nodes)
+            DrawNode(batch, node, zOrder + 2);
+        batch.Clip(m_Geometry);
+    }
+
+    /**
+     * @brief Selects a reference, begins a pose link, or captures a canvas pan.
      * @param event Pointer press in GUI coordinates.
      */
     GUI::SInputReply HandleMouseDown(const MouseButtonPressedEvent& event) override
     {
-        m_Pressed = true;
         m_LastMouse = {event.GetX(), event.GetY()};
-        m_Drag = -1;
+        m_Pressed = true;
         m_Moved = false;
-        if (m_LibraryView)
-        {
-            const auto assets = Assets();
-            for (size_t i = assets.size(); i > 0; --i)
-            {
-                const auto& asset = assets[i - 1];
-                if (AssetRect(*asset.Position).Contains(m_LastMouse))
-                {
-                    m_Drag = int(i - 1);
-                    if (SelectAsset)
-                        SelectAsset(asset.Kind, int(asset.Index));
-                    return GUI::SInputReply::HandledAndCaptured();
-                }
-            }
-            if (AssetRect({520, 110}).Contains(m_LastMouse))
-            {
-                if (OpenMachine)
-                    OpenMachine();
-            }
-            else if (SelectAsset)
-                SelectAsset(EAnimationAssetKind::Sequence, -1);
+        m_Drag = -1;
+        m_Link = -1;
+        if (event.GetMouseButton() != 0)
             return GUI::SInputReply::HandledAndCaptured();
-        }
-        if (event.GetMouseButton() == 0)
+        const auto nodes = Nodes();
+        for (size_t index = nodes.size(); index > 0; --index)
         {
-            for (size_t i = m_Document.Positions.size(); i > 0; --i)
+            const auto& node = nodes[index - 1];
+            if (HasPose(node) && glm::distance(Pin(node, true), m_LastMouse) < 10)
             {
-                if (NodeRect(i - 1).Contains(m_LastMouse))
-                {
-                    m_Drag = int(i - 1);
-                    if (Select)
-                        Select(m_Drag);
-                    return GUI::SInputReply::HandledAndCaptured();
-                }
+                m_Link = int(index - 1);
+                return GUI::SInputReply::HandledAndCaptured();
             }
-            for (size_t i = 0; i < m_Document.Machine.Transitions.size(); ++i)
-            {
-                const auto [start, end] = Endpoints(i);
-                const float lane =
-                    std::min(start.y, end.y) - (28 + float(i % 4) * 18) * m_Zoom;
-                const GUI::SRect hit{
-                    {std::min(start.x, end.x) - 8, lane - 20},
-                    {std::abs(end.x - start.x) + 16, 28}
-                };
-                if (hit.Contains(m_LastMouse))
-                {
-                    if (SelectTransition)
-                        SelectTransition(int(i));
-                    m_Pressed = false;
-                    return GUI::SInputReply::Handled();
-                }
-            }
-            if (Select)
-                Select(-1);
+            if (!NodeRect(node).Contains(m_LastMouse))
+                continue;
+            m_Drag = int(index - 1);
+            if (node.Role == ERole::Machine && SelectMachine)
+                SelectMachine();
+            else if (SelectAsset)
+                SelectAsset(node.Kind, node.Index);
+            return GUI::SInputReply::HandledAndCaptured();
         }
         return GUI::SInputReply::HandledAndCaptured();
     }
 
     /**
-     * @brief Move the captured node or pan the camera.
+     * @brief Moves a node, updates the pending curve, or pans the workspace.
      * @param event Current pointer position.
      */
     GUI::SInputReply HandleMouseMove(const MouseMovedEvent& event) override
@@ -359,15 +582,10 @@ class AnimationGraphCanvas final : public GUI::Widget
         if (m_Pressed)
         {
             const auto delta = point - m_LastMouse;
-            if (m_Drag >= 0 && m_LibraryView)
-            {
-                const auto assets = Assets();
-                if (size_t(m_Drag) < assets.size())
-                    *assets[m_Drag].Position += delta / m_Zoom;
-            }
-            else if (m_Drag >= 0)
-                m_Document.Positions[m_Drag] += delta / m_Zoom;
-            else
+            const auto nodes = Nodes();
+            if (m_Drag >= 0 && size_t(m_Drag) < nodes.size())
+                *nodes[m_Drag].Position += delta / m_Zoom;
+            else if (m_Link < 0)
                 m_Pan += delta;
             m_Moved = m_Moved || glm::length(delta) > 0;
             MarkRenderDirty();
@@ -377,25 +595,33 @@ class AnimationGraphCanvas final : public GUI::Widget
     }
 
     /**
-     * @brief Commit a completed node drag.
-     * @param event Released pointer button.
+     * @brief Commits an authored move or connects a pose to the output pin.
+     * @param event Released pointer button and position.
      */
     GUI::SInputReply HandleMouseUp(const MouseButtonReleasedEvent& event) override
     {
-        m_Pressed = false;
-        if (m_Drag >= 0 && m_Moved && Edited)
+        const auto nodes = Nodes();
+        const glm::vec2 point{event.GetX(), event.GetY()};
+        if (m_Link >= 0 && size_t(m_Link) < nodes.size() && ConnectOutput &&
+            glm::distance(Pin(nodes.back(), false), point) < 14)
+            ConnectOutput(nodes[m_Link].Source);
+        if (m_Drag >= 0 && size_t(m_Drag) < nodes.size() && m_Moved &&
+            nodes[m_Drag].Role == ERole::Asset && Edited)
             Edited();
+        m_Pressed = false;
+        m_Link = -1;
         m_Drag = -1;
+        MarkRenderDirty();
         return GUI::SInputReply::Handled();
     }
 
     /**
-     * @brief Zoom around the last pointer position.
+     * @brief Zooms around the current pointer position.
      * @param event Scroll-wheel delta.
      */
     GUI::SInputReply HandleMouseScrolled(const MouseScrolledEvent& event) override
     {
-        const auto old = m_Zoom;
+        const float old = m_Zoom;
         m_Zoom = std::clamp(m_Zoom * std::pow(1.1f, event.GetOffsetY()), 0.4f, 1.8f);
         const auto local = m_LastMouse - m_Geometry.Position;
         m_Pan = local - (local - m_Pan) * (m_Zoom / old);
@@ -404,451 +630,302 @@ class AnimationGraphCanvas final : public GUI::Widget
     }
 
   private:
-    /** Describes a resource node while the document retains its position. */
-    struct SAssetView
+    /** Identifies graph references without entering their internal asset graphs. */
+    enum class ERole
     {
+        Asset,
+        Machine,
+        Output
+    };
+
+    /** Describes one reference column; the document retains authored asset positions. */
+    struct SNode
+    {
+        ERole Role;
         EAnimationAssetKind Kind;
-        size_t Index;
+        int Index;
         std::string Name;
         std::string Type;
+        std::string Source;
         glm::vec2* Position;
     };
 
-    /** @brief Enumerate editable pose sources and montage actions in draw order. */
-    std::vector<SAssetView> Assets()
+    /** @brief Lists asset references followed by the machine and output nodes. */
+    std::vector<SNode> Nodes()
     {
-        std::vector<SAssetView> assets;
+        std::vector<SNode> nodes;
         auto& library = m_Document.Library;
-        for (size_t i = 0; i < library.Sequences.size(); ++i)
-            assets.push_back(
-                {EAnimationAssetKind::Sequence,
-                 i,
-                 library.Sequences[i].Name,
+        for (size_t index = 0; index < library.Sequences.size(); ++index)
+        {
+            auto& asset = library.Sequences[index];
+            nodes.push_back(
+                {ERole::Asset,
+                 EAnimationAssetKind::Sequence,
+                 int(index),
+                 asset.Name,
                  "Sequence",
-                 &library.Sequences[i].Position}
+                 asset.Name,
+                 &asset.Position}
             );
-        for (size_t i = 0; i < library.BlendSpaces.size(); ++i)
-            assets.push_back(
-                {EAnimationAssetKind::BlendSpace,
-                 i,
-                 library.BlendSpaces[i].Name,
-                 library.BlendSpaces[i].TwoDimensional ? "Blend Space 2D" : "Blend Space 1D",
-                 &library.BlendSpaces[i].Position}
-            );
-        for (size_t i = 0; i < library.Montages.size(); ++i)
-            assets.push_back(
-                {EAnimationAssetKind::Montage,
-                 i,
-                 library.Montages[i].Name,
-                 "Montage / layer action",
-                 &library.Montages[i].Position}
-            );
-        return assets;
-    }
-
-    /**
-     * @brief Convert an authored resource position to its canvas rectangle.
-     * @param position Node position in graph units.
-     */
-    GUI::SRect AssetRect(glm::vec2 position) const
-    {
-        return {m_Geometry.Position + m_Pan + position * m_Zoom, NodeSize * m_Zoom};
-    }
-
-    /**
-     * @brief Draw typed resource nodes and their pose or sequence connections.
-     * @param batch Destination commands.
-     * @param layer First draw layer.
-     */
-    void DrawLibrary(GUI::RenderBatch& batch, int layer)
-    {
-        const auto assets = Assets();
-        const auto& styles = EditorStyle::Get();
-        const auto socket = [this, &assets](const std::string& name, bool output)
+        }
+        for (size_t index = 0; index < library.BlendSpaces.size(); ++index)
         {
-            for (const auto& asset : assets)
-            {
-                if (asset.Name == name)
-                {
-                    const auto rect = AssetRect(*asset.Position);
-                    return rect.Position +
-                           glm::vec2(output ? rect.Size.x : 0, rect.Size.y / 2);
-                }
-            }
-            const auto rect = AssetRect({520, 110});
-            return rect.Position + glm::vec2(rect.Size.x, rect.Size.y / 2);
-        };
-        for (const auto& blend : m_Document.Library.BlendSpaces)
-            for (const auto& sample : blend.Samples)
-                Line(
-                    batch,
-                    socket(sample.Sequence, true),
-                    socket(blend.Name, false),
-                    styles.Accent,
-                    layer
-                );
-        for (const auto& montage : m_Document.Library.Montages)
-            Line(
-                batch,
-                socket(montage.Sequence, true),
-                socket(montage.Name, false),
-                {0.8f, 0.55f, 0.25f, 1},
-                layer
+            auto& asset = library.BlendSpaces[index];
+            nodes.push_back(
+                {ERole::Asset,
+                 EAnimationAssetKind::BlendSpace,
+                 int(index),
+                 asset.Name,
+                 asset.TwoDimensional ? "Blend Space 2D" : "Blend Space 1D",
+                 asset.Name,
+                 &asset.Position}
             );
-        const auto machine = AssetRect({520, 110});
-        for (const auto& source : m_Document.StateSources)
-            Line(
-                batch,
-                socket(source, true),
-                machine.Position + glm::vec2(0, machine.Size.y / 2),
-                {0.3f, 0.45f, 0.45f, 1},
-                layer
-            );
-        const auto output = AssetRect({760, 110});
-        Line(
-            batch,
-            socket(m_Document.OutputSource, true),
-            output.Position + glm::vec2(0, output.Size.y / 2),
-            styles.Accent,
-            layer
+        }
+        nodes.push_back(
+            {ERole::Machine,
+             EAnimationAssetKind::Sequence,
+             -1,
+             "State Machine",
+             "State Machine",
+             "",
+             &m_MachinePosition}
         );
-        for (const auto& asset : assets)
-        {
-            const auto rect = AssetRect(*asset.Position);
-            const bool selected =
-                asset.Kind == m_AssetKind && int(asset.Index) == m_AssetIndex;
-            Rect(batch, rect, {0.12f, 0.15f, 0.20f, 1}, layer + 1);
-            Rect(
-                batch,
-                {rect.Position, {rect.Size.x, 3}},
-                selected ? styles.Accent : GUI::SColor{0.3f, 0.4f, 0.5f, 1},
-                layer + 2
-            );
-            Text(
-                batch,
-                asset.Name,
-                rect.Position + glm::vec2(10, 10),
-                styles.TextPrimary,
-                layer + 2
-            );
-            Text(
-                batch,
-                asset.Type,
-                rect.Position + glm::vec2(10, 42),
-                styles.TextSecondary,
-                layer + 2
-            );
-        }
-        for (const auto& entry :
-             {std::pair{glm::vec2(520, 110), "State Machine"},
-              std::pair{glm::vec2(760, 110), "Output Pose"}})
-        {
-            const auto rect = AssetRect(entry.first);
-            Rect(batch, rect, {0.12f, 0.23f, 0.23f, 1}, layer + 1);
-            Text(
-                batch,
-                entry.second,
-                rect.Position + glm::vec2(10, 12),
-                styles.TextPrimary,
-                layer + 2
-            );
-            Text(
-                batch,
-                entry.first.x == 520 ? "Click to edit states" : "Compiled graph",
-                rect.Position + glm::vec2(10, 42),
-                styles.TextSecondary,
-                layer + 2
-            );
-        }
-        DrawDetails(batch, layer + 3);
-    }
-
-    /**
-     * @brief Draw the selected resource timeline or blend-space sample plane.
-     * @param batch Destination commands.
-     * @param layer Draw layer above graph connections.
-     */
-    void DrawDetails(GUI::RenderBatch& batch, int layer)
-    {
-        if (m_AssetIndex < 0)
-            return;
-        const auto& library = m_Document.Library;
-        const auto origin = m_Geometry.Position + glm::vec2(20, m_Geometry.Size.y - 155);
-        const auto width = std::max(100.0f, m_Geometry.Size.x - 40);
-        Rect(batch, {origin, {width, 140}}, {0.08f, 0.10f, 0.14f, 0.98f}, layer);
-        const auto& styles = EditorStyle::Get();
-        if (m_AssetKind == EAnimationAssetKind::BlendSpace &&
-            size_t(m_AssetIndex) < library.BlendSpaces.size())
-        {
-            const auto& blend = library.BlendSpaces[m_AssetIndex];
-            Text(
-                batch,
-                blend.Name + " / samples and runtime weights",
-                origin + glm::vec2(8),
-                styles.TextPrimary,
-                layer
-            );
-            glm::vec2 lower{0}, upper{1};
-            for (const auto& sample : blend.Samples)
-            {
-                lower = glm::min(lower, sample.Position);
-                upper = glm::max(upper, sample.Position);
-            }
-            const auto project = [&](glm::vec2 point)
-            {
-                const auto normalized =
-                    (point - lower) / glm::max(upper - lower, glm::vec2(0.01f));
-                return origin + glm::vec2(30, 105) +
-                       normalized * glm::vec2(
-                                        std::min(width - 130, 400.0f),
-                                        blend.TwoDimensional ? -65 : 0
-                                    );
-            };
-            for (const auto& sample : blend.Samples)
-            {
-                const auto point = project(sample.Position);
-                Rect(batch, {point, {8, 8}}, styles.Accent, layer);
-                Text(
-                    batch,
-                    sample.Sequence,
-                    point + glm::vec2(10, -12),
-                    styles.TextSecondary,
-                    layer
-                );
-            }
-            Rect(
-                batch,
-                {project(m_Coordinates) - glm::vec2(3), {14, 14}},
-                {0.3f, 0.9f, 0.6f, 1},
-                layer
-            );
-            if (m_Blend)
-            {
-                const std::array values{m_Coordinates.x, m_Coordinates.y};
-                std::vector<SSequenceContribution> contributions;
-                if (m_Blend->CalculateContributions(
-                        std::span(values).first(m_Blend->GetDimensionCount()),
-                        contributions
-                    ))
-                {
-                    float y = 35;
-                    for (const auto& contribution : contributions)
-                    {
-                        Text(
-                            batch,
-                            contribution.Sequence->GetName() + ": " +
-                                std::to_string(contribution.Weight),
-                            origin + glm::vec2(width - 240, y),
-                            styles.TextPrimary,
-                            layer
-                        );
-                        y += 22;
-                    }
-                }
-            }
-            return;
-        }
-        float duration = 0;
-        if (m_AssetKind == EAnimationAssetKind::Sequence &&
-            size_t(m_AssetIndex) < library.Sequences.size())
-        {
-            const auto& clip = library.Sequences[m_AssetIndex];
-            duration = clip.Duration;
-            Text(
-                batch,
-                clip.Name + " / " + std::to_string(duration) + " seconds / " +
-                    std::to_string(clip.Tracks.size()) + " tracks",
-                origin + glm::vec2(8),
-                styles.TextPrimary,
-                layer
-            );
-            for (const auto& marker : clip.Markers)
-            {
-                const float x = marker.Time / std::max(duration, 0.001f) * (width - 30);
-                Rect(batch, {origin + glm::vec2(x + 15, 45), {2, 70}}, styles.Accent, layer);
-                Text(
-                    batch,
-                    marker.Name,
-                    origin + glm::vec2(x + 20, 45),
-                    styles.TextSecondary,
-                    layer
-                );
-            }
-            for (const auto& notify : clip.Notifies)
-            {
-                const float x = notify.Time / std::max(duration, 0.001f) * (width - 30);
-                Rect(
-                    batch,
-                    {origin + glm::vec2(x + 15, 90),
-                     {std::max(
-                          4.0f,
-                          notify.Duration / std::max(duration, 0.001f) * (width - 30)
-                      ),
-                      15}},
-                    {0.8f, 0.55f, 0.25f, 1},
-                    layer
-                );
-                Text(
-                    batch,
-                    notify.Name,
-                    origin + glm::vec2(x + 20, 110),
-                    styles.TextSecondary,
-                    layer
-                );
-            }
-        }
-        if (m_AssetKind == EAnimationAssetKind::Montage &&
-            size_t(m_AssetIndex) < library.Montages.size())
-        {
-            const auto& montage = library.Montages[m_AssetIndex];
-            for (const auto& clip : library.Sequences)
-                if (clip.Name == montage.Sequence)
-                    duration = clip.Duration;
-            Text(
-                batch,
-                montage.Name + " / layer action / section timeline",
-                origin + glm::vec2(8),
-                styles.TextPrimary,
-                layer
-            );
-            for (const auto& section : montage.Sections)
-            {
-                const float x = section.StartTime / std::max(duration, 0.001f) * (width - 30);
-                Rect(batch, {origin + glm::vec2(x + 15, 45), {2, 70}}, styles.Accent, layer);
-                Text(
-                    batch,
-                    section.Name + " > " + section.NextSection.value_or("next"),
-                    origin + glm::vec2(x + 20, 65),
-                    styles.TextSecondary,
-                    layer
-                );
-            }
-        }
-        const float cursor =
-            std::clamp(m_Time / std::max(duration, 0.001f), 0.0f, 1.0f) * (width - 30);
-        Rect(
-            batch,
-            {origin + glm::vec2(cursor + 15, 30), {2, 100}},
-            {0.3f, 0.9f, 0.6f, 1},
-            layer
+        nodes.push_back(
+            {ERole::Output,
+             EAnimationAssetKind::Sequence,
+             -1,
+             "Output Pose",
+             "Animation Output",
+             "",
+             &m_OutputPosition}
         );
-    }
-    /**
-     * @brief Get the screen rectangle of a state.
-     * @param index State index.
-     */
-    GUI::SRect NodeRect(size_t index) const
-    {
-        return {
-            m_Geometry.Position + m_Pan + m_Document.Positions[index] * m_Zoom,
-            NodeSize * m_Zoom
-        };
+        return nodes;
     }
 
     /**
-     * @brief Find a transition's source and destination sockets.
-     * @param index Transition index.
+     * @brief Fits visible nodes between the preview and property overlays.
+     * @param nodes References whose bounds determine the workspace camera.
      */
-    std::pair<glm::vec2, glm::vec2> Endpoints(size_t index) const
+    void Frame(const std::vector<SNode>& nodes)
     {
-        const auto& transition = m_Document.Machine.Transitions[index];
-        glm::vec2 start{}, end{};
-        for (size_t i = 0; i < m_Document.Machine.States.size(); ++i)
+        glm::vec2 lower = *nodes.front().Position;
+        glm::vec2 upper = lower + NodeSize;
+        for (const auto& node : nodes)
         {
-            const auto rect = NodeRect(i);
-            if (m_Document.Machine.States[i].Name == transition.From)
-                start = rect.Position + glm::vec2(rect.Size.x * 0.7f, 0);
-            if (m_Document.Machine.States[i].Name == transition.To)
-                end = rect.Position + glm::vec2(rect.Size.x * 0.3f, 0);
+            lower = glm::min(lower, *node.Position);
+            upper = glm::max(upper, *node.Position + NodeSize);
         }
-        return {start, end};
+        const auto extent = glm::max(upper - lower, glm::vec2(1));
+        const glm::vec2 available{
+            std::max(200.0f, m_Geometry.Size.x - 510),
+            std::max(180.0f, m_Geometry.Size.y - 110)
+        };
+        m_Zoom =
+            std::clamp(std::min(available.x / extent.x, available.y / extent.y), 0.4f, 1.0f);
+        m_Pan = glm::vec2(220, 70) + (available - extent * m_Zoom) * 0.5f - lower * m_Zoom;
+        m_FrameRequested = false;
     }
 
     /**
-     * @brief Draw a clipped rectangle.
-     * @param batch Destination batch.
-     * @param rect Screen rectangle.
-     * @param color Fill color.
-     * @param layer Draw layer.
+     * @brief Reports whether a node can supply the graph's base pose.
+     * @param node Reference to inspect.
      */
-    void
-    Rect(GUI::RenderBatch& batch, const GUI::SRect& rect, GUI::SColor color, int layer) const
+    bool HasPose(const SNode& node) const { return node.Role != ERole::Output; }
+
+    /**
+     * @brief Converts a reference position to its screen bounds.
+     * @param node Reference to place.
+     */
+    GUI::SRect NodeRect(const SNode& node) const
     {
-        batch.AddRect(rect, color, {}, {}, {}, {}, layer);
+        return {m_Geometry.Position + m_Pan + *node.Position * m_Zoom, NodeSize * m_Zoom};
     }
 
     /**
-     * @brief Draw a directed path segment with small square samples.
-     * @param batch Destination batch.
-     * @param from First endpoint.
-     * @param to Second endpoint.
-     * @param color Path color.
-     * @param layer Draw layer.
+     * @brief Gets a pose pin on either side of a node.
+     * @param node Reference containing the pin.
+     * @param output True for the right output; false for the left input.
      */
-    void Line(
-        GUI::RenderBatch& batch,
-        glm::vec2 from,
-        glm::vec2 to,
-        GUI::SColor color,
-        int layer
-    ) const
+    glm::vec2 Pin(const SNode& node, bool output) const
     {
-        if (from.x == to.x || from.y == to.y)
+        const auto rect = NodeRect(node);
+        return rect.Position + glm::vec2(output ? rect.Size.x : 0, 130 * m_Zoom);
+    }
+
+    /**
+     * @brief Draws a smooth cubic pose connection with horizontal endpoint tangents.
+     * @param batch Destination draw commands.
+     * @param from Output pin position.
+     * @param to Input pin position.
+     * @param layer Draw layer below nodes.
+     */
+    void Curve(GUI::RenderBatch& batch, glm::vec2 from, glm::vec2 to, int layer) const
+    {
+        const float reach = std::max(60 * m_Zoom, std::abs(to.x - from.x) * 0.5f);
+        const auto first = from + glm::vec2(reach, 0);
+        const auto second = to - glm::vec2(reach, 0);
+        const float length = glm::distance(from, first) + glm::distance(first, second) +
+                             glm::distance(second, to);
+        const int steps = int(std::clamp(length / 0.35f, 1.0f, 4096.0f));
+        for (int index = 0; index <= steps; ++index)
         {
-            Rect(
-                batch,
-                {glm::min(from, to), glm::abs(to - from) + glm::vec2(2)},
-                color,
+            const float t = float(index) / float(steps);
+            const float u = 1 - t;
+            const auto point = u * u * u * from + 3 * u * u * t * first +
+                               3 * u * t * t * second + t * t * t * to;
+            batch.AddRect(
+                {point - glm::vec2(1), {2, 2}},
+                EditorStyle::Get().Accent,
+                glm::vec4(1),
+                {},
+                {},
+                {},
                 layer
             );
-            return;
         }
-        const int steps = int(std::clamp(glm::length(to - from) / 2, 1.0f, 2000.0f));
-        for (int i = 0; i <= steps; ++i)
-            Rect(batch, {glm::mix(from, to, float(i) / float(steps)), {2, 2}}, color, layer);
     }
 
     /**
-     * @brief Draw a clipped canvas label.
-     * @param batch Destination batch.
-     * @param text Label text.
+     * @brief Draws a reference with the header, framed body, and rows used by VFX columns.
+     * @param batch Destination draw commands.
+     * @param node Reference to draw.
+     * @param layer First node draw layer.
+     */
+    void DrawNode(GUI::RenderBatch& batch, const SNode& node, int layer) const
+    {
+        const auto& style = EditorStyle::Get();
+        const auto rect = NodeRect(node);
+        const bool selected =
+            node.Role == ERole::Machine ? m_MachineSelected
+            : node.Role == ERole::Output
+                ? !m_MachineSelected && m_AssetIndex < 0
+                : !m_MachineSelected && node.Kind == m_AssetKind && node.Index == m_AssetIndex;
+        auto card = style.PanelSection.Normal.Background;
+        card.CornerRadius = glm::vec4(6 * m_Zoom);
+        card.Outline = {
+            selected ? style.Accent : style.PanelHeaderBorder.Normal.Background.Color,
+            1
+        };
+        batch.AddBrush(card, rect, layer);
+        const auto color = node.Role == ERole::Machine ? style.Accent
+                           : node.Role == ERole::Output
+                               ? style.PanelHeaderBorder.Normal.Background.Color
+                           : node.Kind == EAnimationAssetKind::Sequence ? style.AxisZ
+                                                                        : style.AxisY;
+        batch.AddRect(
+            {rect.Position, {rect.Size.x, 26 * m_Zoom}},
+            color,
+            {6 * m_Zoom, 6 * m_Zoom, 0, 0},
+            {},
+            {},
+            {},
+            layer + 1
+        );
+        Label(
+            batch,
+            node.Name,
+            rect.Position + glm::vec2(8, 5) * m_Zoom,
+            style.TextPrimary,
+            11,
+            layer + 2
+        );
+        Label(
+            batch,
+            node.Type,
+            rect.Position + glm::vec2(8, 34) * m_Zoom,
+            style.TextSecondary,
+            10,
+            layer + 2
+        );
+        const GUI::SRect body{
+            rect.Position + glm::vec2(6, 56) * m_Zoom,
+            glm::vec2(NodeSize.x - 12, 48) * m_Zoom
+        };
+        auto section = style.InspectorField.Normal.Background;
+        section.CornerRadius = glm::vec4(3 * m_Zoom);
+        batch.AddBrush(section, body, layer + 1);
+        Label(
+            batch,
+            node.Role == ERole::Output ? "Result" : "Asset",
+            body.Position + glm::vec2(6, 4) * m_Zoom,
+            style.TextSecondary,
+            10,
+            layer + 2
+        );
+        const auto reference = node.Role == ERole::Machine ? m_Document.Name
+                               : node.Role == ERole::Output
+                                   ? std::string("Final animation pose")
+                                   : node.Name;
+        Label(
+            batch,
+            reference,
+            body.Position + glm::vec2(6, 22) * m_Zoom,
+            style.TextPrimary,
+            11,
+            layer + 2
+        );
+        if (HasPose(node) || node.Role == ERole::Output)
+        {
+            const auto point = Pin(node, node.Role != ERole::Output);
+            const float radius = 4 * m_Zoom;
+            batch.AddRect(
+                {point - glm::vec2(radius), glm::vec2(radius * 2)},
+                style.Accent,
+                glm::vec4(radius),
+                {},
+                {},
+                {},
+                layer + 3
+            );
+            Label(
+                batch,
+                "Pose",
+                rect.Position +
+                    glm::vec2(node.Role == ERole::Output ? 10 : NodeSize.x - 40, 122) * m_Zoom,
+                style.TextPrimary,
+                11,
+                layer + 2
+            );
+        }
+    }
+
+    /**
+     * @brief Draws a scaled label inside a reference column.
+     * @param batch Destination draw commands.
+     * @param text Visible label.
      * @param position Screen position.
      * @param color Text color.
+     * @param size Font size before zoom.
      * @param layer Draw layer.
      */
-    void Text(
+    void Label(
         GUI::RenderBatch& batch,
         const std::string& text,
         glm::vec2 position,
-        GUI::SColor color,
+        const GUI::SColor& color,
+        float size,
         int layer
     ) const
     {
         batch.AddText(
             text,
-            {position, {230 * m_Zoom, 24 * m_Zoom}},
+            {position, {190 * m_Zoom, 20 * m_Zoom}},
             FontManager::GetDefaultFont(),
-            13 * m_Zoom,
+            size * m_Zoom,
             color,
             layer
         );
     }
 
     AnimationGraphDocument& m_Document;
-    glm::vec2 m_Pan{32, 60};
-    glm::vec2 m_LastMouse{};
+    /** Workspace locations of the machine reference and final output. */
+    glm::vec2 m_MachinePosition{520, 300}, m_OutputPosition{800, 100};
+    glm::vec2 m_Pan{}, m_LastMouse{};
     float m_Zoom = 1;
-    int m_Selected = -1;
-    int m_SelectedTransition = -1;
-    int m_Drag = -1;
-    bool m_Moved = false;
-    std::string m_Active;
-    bool m_LibraryView = true;
+    int m_AssetIndex = -1, m_Drag = -1, m_Link = -1;
     EAnimationAssetKind m_AssetKind = EAnimationAssetKind::Sequence;
-    int m_AssetIndex = -1;
-    float m_Time = 0;
-    glm::vec2 m_Coordinates{};
-    Ref<const BlendSpace> m_Blend;
+    bool m_MachineSelected = false, m_Pressed = false, m_Moved = false;
+    bool m_FrameRequested = true;
 };
 
 AnimationGraphPanel::AnimationGraphPanel()
@@ -860,7 +937,7 @@ AnimationGraphPanel::AnimationGraphPanel()
         SAnimationSequenceAsset sequence;
         sequence.Name = name;
         sequence.Skeleton = skeleton;
-        sequence.Position = {0, height * 200};
+        sequence.Position = {0, height * 360};
         SBoneAnimationTrack track;
         track.Translations = {{0, {0, height, 0}}, {1, {0, height + 0.1f, 0}}};
         sequence.Tracks.push_back(track);
@@ -881,7 +958,7 @@ AnimationGraphPanel::AnimationGraphPanel()
          "Speed",
          "Direction",
          {{"Idle", {0, 0}}, {"Walk", {1, 0}}, {"Run", {0, 1}}},
-         {260, 150}}
+         {260, 240}}
     };
     m_Document.Library.Montages = {
         {"Action",
@@ -890,7 +967,7 @@ AnimationGraphPanel::AnimationGraphPanel()
          0.15f,
          true,
          {{"Start", 0}, {"Action", 0.4f, std::string("Action")}, {"End", 0.8f}},
-         {520, 210}}
+         {520, 480}}
     };
     RefreshSources();
     m_Document.Name = "Locomotion";
@@ -911,7 +988,6 @@ AnimationGraphPanel::AnimationGraphPanel()
         {"Run", "Walk", {{"Speed", EAnimationComparison::LessEqual, 3.0f}}}
     };
     m_LastEdit = m_Document;
-    m_State = -1;
     m_AssetKind = EAnimationAssetKind::BlendSpace;
     m_Asset = 0;
 }
@@ -923,7 +999,6 @@ AnimationGraphPanel::AnimationGraphPanel(
     : m_Document(std::move(document)), m_Sources(std::move(sources)), m_LastEdit(m_Document)
 {
     m_Document.Positions.resize(m_Document.Machine.States.size(), {80, 100});
-    m_LibraryView = !m_Document.Library.Sequences.empty();
     if (m_Document.StateSources.empty())
     {
         for (const auto& state : m_Document.Machine.States)
@@ -942,221 +1017,212 @@ AnimationGraphPanel::AnimationGraphPanel(
 Ref<GUI::Widget> AnimationGraphPanel::Build()
 {
     const auto root = CreateRef<GUI::Canvas>();
-    root->SetStyle(EditorStyle::Get().Panel);
+    const auto& chrome = EditorStyle::Get();
+    root->SetStyle(chrome.Transparent);
     m_Canvas = CreateRef<AnimationGraphCanvas>(m_Document);
-    root->AddChild(m_Canvas)
-        .SetAnchors(GUI::SAnchors::StretchAll())
-        .SetOffsets(0, 82, -300, -32);
-    m_Canvas->Select = [this](int index)
+    root->AddChild(m_Canvas).SetAnchors(GUI::SAnchors::StretchAll());
+    m_Canvas->SelectAsset = [this](EAnimationAssetKind kind, int index)
     {
-        if (m_ConnectFrom >= 0 && index >= 0 && m_ConnectFrom != index)
-        {
-            m_Document.Machine.Transitions.push_back(
-                {m_Document.Machine.States[m_ConnectFrom].Name,
-                 m_Document.Machine.States[index].Name,
-                 {}}
-            );
-            Changed();
-        }
-        m_ConnectFrom = -1;
-        m_State = index;
-        m_Transition = -1;
+        m_AssetKind = kind;
+        m_Asset = index;
+        m_MachineSelected = false;
+        m_ShowDefaults = false;
         m_Refresh = true;
     };
-    m_Canvas->SelectTransition = [this](int index)
+    m_Canvas->SelectMachine = [this]
     {
-        m_State = -1;
-        m_Transition = index;
-        m_ConnectFrom = -1;
+        m_MachineSelected = true;
+        m_Asset = -1;
+        m_ShowDefaults = false;
         m_Refresh = true;
+    };
+    m_Canvas->ConnectOutput = [this](const std::string& source)
+    {
+        if (m_Document.OutputSource == source)
+            return;
+        m_Document.OutputSource = source;
+        Changed();
     };
     m_Canvas->Edited = [this]
     {
         Changed();
     };
-    m_Canvas->SelectAsset = [this](EAnimationAssetKind kind, int index)
-    {
-        m_AssetKind = kind;
-        m_Asset = index;
-        m_State = -1;
-        m_Transition = -1;
-        m_Refresh = true;
-    };
-    m_Canvas->OpenMachine = [this]
-    {
-        m_LibraryView = false;
-        m_State = m_Document.Machine.States.empty() ? -1 : 0;
-        m_Refresh = true;
-    };
 
+    const auto tools = CreateRef<GUI::Overlay>();
+    tools->SetStyle(chrome.Toolbar);
+    tools->SetPadding({4, 4});
+    root->AddChild(tools)
+        .SetAnchors(GUI::SAnchors::TopCenter())
+        .SetAlignment({0.5f, 0})
+        .SetPosition({0, 10})
+        .SetSize({160, 34});
     const auto toolbar = CreateRef<GUI::HorizontalBox>();
-    toolbar->SetStyle(EditorStyle::Get().Toolbar);
-    root->AddChild(toolbar).SetAnchors({0, 0, 1, 0}).SetSize({0, 40});
-    const auto addButton = [&toolbar](const std::string& title, auto callback)
+    tools->AddChild(toolbar)
+        .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill)
+        .SetVerticalAlignment(GUI::EVerticalAlignment::Fill);
+    const auto command =
+        [&](const std::string& name, const std::string& label, std::function<void()> callback)
     {
-        const auto button = CreateRef<GUI::Button>(title);
-        button->SetStyle(GraphButtonStyle());
-        button->SetFontSize(12);
-        button->OnClick(callback);
-        toolbar->AddChild(button).SetFixedSize(100);
+        const auto button = CreateRef<AnimationToolbarButton>();
+        button->SetStyle(chrome.PanelHeaderButton);
+        button->SetPadding({6, 4});
+        button->OnClick(std::move(callback));
+        const auto content = CreateRef<GUI::HorizontalBox>();
+        const auto icon = WorkspaceIcon(name);
+        icon->SetSize({12, 12});
+        content->AddChild(icon).SetFixedSize(13).SetMargin({0, 0, 5, 0});
+        content->AddChild(WorkspaceText(label, 11));
+        button->SetContent(content);
+        toolbar->AddChild(button).SetFillSize();
     };
-    addButton(
-        "Pose / States",
+    command(
+        "save",
+        "Save",
         [this]
         {
-            m_LibraryView = !m_LibraryView;
-            m_Refresh = true;
+            FileAction(true);
         }
     );
-    addButton(
-        "+ Sequence",
-        [this]
-        {
-            AddAsset(EAnimationAssetKind::Sequence);
-        }
-    );
-    addButton(
-        "+ Blend 1D",
-        [this]
-        {
-            AddAsset(EAnimationAssetKind::BlendSpace);
-        }
-    );
-    addButton(
-        "+ Blend 2D",
-        [this]
-        {
-            AddAsset(EAnimationAssetKind::BlendSpace, true);
-        }
-    );
-    addButton(
-        "+ Montage",
-        [this]
-        {
-            AddAsset(EAnimationAssetKind::Montage);
-        }
-    );
-    addButton(
-        "+ State",
-        [this]
-        {
-            if (m_Sources.empty())
-            {
-                m_Status->SetText("Register an animation source before adding states.");
-                return;
-            }
-            size_t suffix = m_Document.Machine.States.size() + 1;
-            std::string name;
-            bool exists;
-            do
-            {
-                name = "State " + std::to_string(suffix++);
-                exists = false;
-                for (const auto& state : m_Document.Machine.States)
-                    exists = exists || state.Name == name;
-            } while (exists);
-            m_Document.Machine.States.push_back({name, m_Sources.begin()->second});
-            m_Document.StateSources.push_back(m_Sources.begin()->first);
-            m_Document.Machine.States.back().InputParameters =
-                m_Document.Library.Bindings(m_Sources.begin()->first);
-            m_Document.Positions.push_back({80, 260});
-            if (m_Document.Machine.InitialState.empty())
-                m_Document.Machine.InitialState = name;
-            m_State = int(m_Document.Machine.States.size() - 1);
-            m_Transition = -1;
-            m_LibraryView = false;
-            Changed();
-        }
-    );
-    addButton(
+    command(
+        "compile",
         "Compile",
         [this]
         {
             Compile();
         }
     );
-    addButton(
-        "Play / Pause",
+    RegisterOverlay(tools);
+
+    const auto title = CreateRef<GUI::Overlay>();
+    title->SetStyle(chrome.Panel);
+    title->SetPadding({10, 0});
+    root->AddChild(title).SetPosition({10, 10}).SetSize({190, 34});
+    m_DocumentTitle = WorkspaceText(m_Document.Name, 12);
+    title->AddChild(m_DocumentTitle)
+        .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill)
+        .SetVerticalAlignment(GUI::EVerticalAlignment::Center);
+    RegisterOverlay(title);
+
+    const auto preview = WorkspaceSection("Preview", "eye");
+    root->AddChild(preview).SetPosition({10, 56}).SetSize({190, 264});
+    m_PosePreview = CreateRef<AnimationPosePreview>();
+    preview->AddChild(m_PosePreview)
+        .SetFillSize()
+        .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill);
+    const auto playback = CreateRef<GUI::HorizontalBox>();
+    playback->SetPadding({6, 2});
+    playback
+        ->AddChild(WorkspaceCommand(
+            "",
+            "restart",
+            [this]
+            {
+                SeekPreview(0);
+            }
+        ))
+        .SetFixedSize(28);
+    m_PlayButton = WorkspaceCommand(
+        "",
+        "play",
         [this]
         {
             if (!m_Preview)
                 Compile();
             m_Playing = m_Preview && !m_Playing;
+        }
+    );
+    playback->AddChild(m_PlayButton).SetFixedSize(28);
+    playback
+        ->AddChild(WorkspaceCommand(
+            "",
+            "pause",
+            [this]
+            {
+                m_Playing = false;
+            }
+        ))
+        .SetFixedSize(28);
+    playback
+        ->AddChild(WorkspaceCommand(
+            "",
+            "step-forward",
+            [this]
+            {
+                if (!m_Preview)
+                    Compile();
+                m_Playing = false;
+                if (m_Preview)
+                    m_Preview->Update(1.0f / 60);
+            }
+        ))
+        .SetFixedSize(28);
+    m_PlaybackStatus = WorkspaceText("0.00 s", 10);
+    playback->AddChild(m_PlaybackStatus)
+        .SetFillSize()
+        .SetVerticalAlignment(GUI::EVerticalAlignment::Center)
+        .SetMargin({8, 0, 0, 0});
+    preview->AddChild(playback).SetFixedSize(30).SetHorizontalAlignment(
+        GUI::EHorizontalAlignment::Fill
+    );
+    m_PoseStatus = WorkspaceText("Compile to preview the skeleton pose", 10);
+    preview->AddChild(m_PoseStatus)
+        .SetFixedSize(24)
+        .SetHorizontalAlignment(GUI::EHorizontalAlignment::Fill)
+        .SetMargin({10, 0});
+
+    RegisterOverlay(preview, {-12, 0});
+    const auto inputs = WorkspaceSection("Preview Parameters", "edit");
+    root->AddChild(inputs).SetPosition({10, 330}).SetSize({190, 180});
+    m_PreviewInputs = WorkspaceList(inputs);
+    RegisterOverlay(inputs, {-12, 0});
+
+    const auto details = WorkspaceSection("Node Properties", "inspector");
+    root->AddChild(details)
+        .SetAnchors({1, 0, 1, 1})
+        .SetPosition({-270, 0})
+        .SetSize({260, 0})
+        .SetOffsets(0, 10, 0, -10);
+    const auto tabs = CreateRef<GUI::HorizontalBox>();
+    m_DetailsTab = WorkspaceCommand(
+        "Node",
+        "",
+        [this]
+        {
+            m_ShowDefaults = false;
             m_Refresh = true;
         }
     );
-    addButton(
-        "Undo",
+    m_DefaultsTab = WorkspaceCommand(
+        "Graph",
+        "",
         [this]
         {
-            History(false);
+            m_ShowDefaults = true;
+            m_Refresh = true;
         }
     );
-    addButton(
-        "Redo",
-        [this]
-        {
-            History(true);
-        }
+    tabs->AddChild(m_DetailsTab).SetFillSize();
+    tabs->AddChild(m_DefaultsTab).SetFillSize();
+    details->AddChild(tabs).SetFixedSize(28).SetHorizontalAlignment(
+        GUI::EHorizontalAlignment::Fill
     );
-    addButton(
-        "Reset view",
-        [this]
-        {
-            m_Canvas->ResetView();
-        }
-    );
-
-    addButton(
-        "Play Action",
-        [this]
-        {
-            if (m_AssetKind == EAnimationAssetKind::Montage && m_Asset >= 0)
-                PlayMontage(size_t(m_Asset));
-            else
-                m_Status->SetText("Select a montage node, then choose Play Action.");
-        }
-    );
-
-    const auto filebar = CreateRef<GUI::HorizontalBox>();
-    root->AddChild(filebar).SetAnchors({0, 0, 1, 0}).SetPosition({0, 42}).SetSize({0, 36});
+    m_Inspector = WorkspaceList(details);
+    RegisterOverlay(details, {12, 0});
     m_Path = CreateRef<GUI::TextField>("AnimationGraph.animgraph");
-    m_Path->SetStyle(EditorStyle::Get().TextField);
-    filebar->AddChild(m_Path).SetFillSize();
-    for (const bool save : {true, false})
-    {
-        const auto button = CreateRef<GUI::Button>(save ? "Save" : "Load");
-        button->SetStyle(GraphButtonStyle());
-        button->OnClick(
-            [this, save]
-            {
-                FileAction(save);
-            }
-        );
-        filebar->AddChild(button).SetFixedSize(90);
-    }
+    m_Path->SetStyle(chrome.TextField);
+    m_Path->SetFontSize(11);
 
-    const auto scroll = CreateRef<GUI::ScrollBox>();
-    scroll->SetStyle(EditorStyle::Get().ScrollBar);
-    root->AddChild(scroll)
-        .SetAnchors({1, 0, 1, 1})
-        .SetPosition({-296, 0})
-        .SetSize({292, 0})
-        .SetOffsets(0, 82, 0, -32);
-    m_Inspector = CreateRef<GUI::VerticalBox>();
-    m_Inspector->SetPadding(GUI::SPadding(12));
-    scroll->SetContent(m_Inspector);
-
-    m_Status =
-        CreateRef<GUI::TextBlock>("Select a typed resource. Compile, then Play to preview.");
-    m_Status->SetFontSize(12);
-    m_Status->SetColor(EditorStyle::Get().TextPrimary);
+    m_Status = WorkspaceText("Ready", 10);
+    m_Status->SetColor(chrome.TextSecondary);
     root->AddChild(m_Status)
         .SetAnchors({0, 1, 1, 1})
         .SetPosition({0, -28})
-        .SetSize({0, 24})
-        .SetOffsets(8, 0, -8, 0);
+        .SetSize({0, 20})
+        .SetOffsets(220, 0, -290, 0);
+    m_Status->SetVisibility(GUI::EVisibility::HitTestInvisible);
+    RegisterOverlay(m_Status, {0, 12});
     RefreshInspector();
+    Compile();
     return root;
 }
 
@@ -1214,9 +1280,6 @@ void AnimationGraphPanel::History(const bool redo)
     m_Document = std::move(from.back());
     from.pop_back();
     m_LastEdit = m_Document;
-    m_State = -1;
-    m_Transition = -1;
-    m_ConnectFrom = -1;
     m_Asset = -1;
     RefreshSources();
     m_Preview.reset();
@@ -1289,9 +1352,6 @@ void AnimationGraphPanel::FileAction(const bool save)
         }
         Changed();
         m_Dirty = false;
-        m_State = -1;
-        m_Transition = -1;
-        m_ConnectFrom = -1;
         m_Asset = -1;
         m_Status->SetText("Loaded " + m_Path->GetText());
     }
@@ -1304,6 +1364,7 @@ void AnimationGraphPanel::OnUpdate(const Timestep frameTime)
         m_Refresh = false;
         RefreshInspector();
     }
+    m_DocumentTitle->SetText(m_Document.Name + (m_Dirty ? " *" : ""));
     if (m_Preview && m_Playing)
     {
         if (!m_Preview->Update(std::min(float(frameTime), 0.1f)))
@@ -1312,60 +1373,123 @@ void AnimationGraphPanel::OnUpdate(const Timestep frameTime)
             m_Status->SetText("Runtime preview failed to advance.");
         }
     }
-    if (m_Canvas)
+    m_Canvas->SetSelection(m_AssetKind, m_Asset, m_MachineSelected);
+    Ref<const Skeleton> skeleton = m_Preview ? m_Preview->GetSkeleton() : nullptr;
+    if (m_Asset >= 0 && m_AssetKind == EAnimationAssetKind::Sequence &&
+        size_t(m_Asset) < m_Document.Library.Sequences.size())
+        skeleton = m_Document.Library.Sequences[m_Asset].Skeleton;
+    else
     {
-        const auto active = m_Preview ? std::string(m_Preview->GetCurrentState()) : "";
-        m_Canvas->Refresh(m_State, m_Transition, active);
-        m_Canvas->SetLibraryView(m_LibraryView, m_AssetKind, m_Asset);
-        glm::vec2 coordinates{};
-        Ref<const BlendSpace> blend;
-        if (m_AssetKind == EAnimationAssetKind::BlendSpace && m_Asset >= 0 &&
+        std::string sourceName = m_Document.OutputSource;
+        if (m_Asset >= 0 && m_AssetKind == EAnimationAssetKind::BlendSpace &&
             size_t(m_Asset) < m_Document.Library.BlendSpaces.size())
-        {
-            const auto& asset = m_Document.Library.BlendSpaces[m_Asset];
-            if (m_Preview)
-            {
-                coordinates.x =
-                    m_Preview->GetParameters().GetFloat(asset.XParameter).value_or(0);
-                coordinates.y =
-                    m_Preview->GetParameters().GetFloat(asset.YParameter).value_or(0);
-            }
-            const auto source = m_Sources.find(asset.Name);
-            if (source != m_Sources.end())
-            {
-                const auto node =
-                    std::dynamic_pointer_cast<const BlendSpaceNode>(source->second);
-                if (node)
-                    blend = node->GetBlendSpace();
-            }
-        }
-        float time = m_Preview ? m_Preview->GetBaseLayer().GetPlayer().GetTime() : 0;
-        if (m_Preview && m_AssetKind == EAnimationAssetKind::Montage)
-            time = float(m_Preview->GetBaseLayer().GetPlayer().GetMontageTime());
-        m_Canvas->SetPreview(time, coordinates, blend);
-        if (m_PlaybackStatus && m_Preview)
-        {
-            const auto& player = m_Preview->GetBaseLayer().GetPlayer();
-            const auto& transforms = m_Preview->GetLocalPose().LocalTransforms;
-            const float root = transforms.empty() ? 0 : transforms.front().Translation.y;
-            m_PlaybackStatus->SetText(
-                "t=" + std::to_string(time) + " root Y=" + std::to_string(root) +
-                " section=" + std::string(player.GetCurrentMontageSection())
-            );
-        }
+            sourceName = m_Document.Library.BlendSpaces[m_Asset].Name;
+        const auto source = m_Sources.find(sourceName);
+        if (source != m_Sources.end() && source->second)
+            skeleton = source->second->GetSkeleton();
+        else if (!skeleton && !m_Document.Machine.States.empty() &&
+                 m_Document.Machine.States.front().Node)
+            skeleton = m_Document.Machine.States.front().Node->GetSkeleton();
     }
+    m_PosePreview->SetSkeleton(skeleton);
+    m_PosePreview->SetPreview(m_Preview);
+    auto playStyle = GraphButtonStyle();
+    if (m_Playing)
+        playStyle.Normal.Background = EditorStyle::Get().PlayButtonActive.Normal.Background;
+    m_PlayButton->SetStyle(playStyle);
+    if (m_Preview)
+    {
+        const auto& player = m_Preview->GetBaseLayer().GetPlayer();
+        const double time = player.GetTime();
+        m_PlaybackStatus->SetText(std::format("{:.2f} s", time));
+    }
+    else
+    {
+        m_PlaybackStatus->SetText("Not compiled");
+    }
+    if (skeleton)
+        m_PoseStatus->SetText(
+            std::format("{} · {} bones", skeleton->GetName(), skeleton->GetBones().size())
+        );
+    else
+        m_PoseStatus->SetText("No animation skeleton");
 }
 
 void AnimationGraphPanel::RefreshInspector()
 {
+    // Reflow the overlay tree when scroll content is replaced after a drawer transition.
+    m_Canvas->ReflowWorkspace();
     m_Inspector->ClearChildren();
-    m_PlaybackStatus.reset();
+    RefreshPreviewInputs();
+    WorkspaceSelection(m_DetailsTab, !m_ShowDefaults);
+    WorkspaceSelection(m_DefaultsTab, m_ShowDefaults);
+    if (m_ShowDefaults)
+    {
+        BuildDefaultsInspector();
+        return;
+    }
+    std::string name = m_MachineSelected ? m_Document.Name : "Output Pose";
+    std::string type = m_MachineSelected ? "State Machine" : "Animation Output";
+    const auto& library = m_Document.Library;
+    bool source = m_MachineSelected;
+    if (m_Asset >= 0)
+    {
+        const size_t index = size_t(m_Asset);
+        if (m_AssetKind == EAnimationAssetKind::Sequence && index < library.Sequences.size())
+        {
+            name = library.Sequences[index].Name;
+            type = "Sequence";
+            source = true;
+        }
+        else if (m_AssetKind == EAnimationAssetKind::BlendSpace &&
+                 index < library.BlendSpaces.size())
+        {
+            name = library.BlendSpaces[index].Name;
+            type = library.BlendSpaces[index].TwoDimensional ? "Blend Space 2D"
+                                                             : "Blend Space 1D";
+            source = true;
+        }
+        else
+            m_Asset = -1;
+    }
+    Caption(m_Inspector, "NODE");
+    Caption(m_Inspector, name);
+    Caption(m_Inspector, type);
+    if (source)
+    {
+        const std::string sourceName = m_MachineSelected ? "" : name;
+        Action(
+            m_Inspector,
+            "Connect to Output Pose",
+            [this, sourceName]
+            {
+                if (m_Document.OutputSource != sourceName)
+                {
+                    m_Document.OutputSource = sourceName;
+                    Changed();
+                }
+            }
+        );
+    }
+    Caption(m_Inspector, "GRAPH OUTPUT");
     Caption(
         m_Inspector,
-        m_LibraryView ? "ANIMATION GRAPH / POSE SOURCES" : "ANIMATION GRAPH / STATE MACHINE"
+        m_Document.OutputSource.empty() ? "State Machine" : m_Document.OutputSource
     );
-    Caption(m_Inspector, "Drag nodes. Drag background to pan.");
-    Caption(m_Inspector, "Scroll to zoom. Click a wire to inspect.");
+    Action(
+        m_Inspector,
+        m_Document.OutputLooping ? "Playback: Loop" : "Playback: Once",
+        [this]
+        {
+            m_Document.OutputLooping = !m_Document.OutputLooping;
+            Changed();
+        }
+    );
+}
+
+void AnimationGraphPanel::BuildDefaultsInspector()
+{
+    Caption(m_Inspector, "DOCUMENT");
     Field(
         m_Inspector,
         m_Document.Name,
@@ -1376,277 +1500,34 @@ void AnimationGraphPanel::RefreshInspector()
             m_Refresh = false;
         }
     );
-    if (m_LibraryView)
-    {
-        if (m_Preview)
+    Caption(m_Inspector, "File");
+    m_Inspector->AddChild(m_Path).SetFixedSize(30).SetHorizontalAlignment(
+        GUI::EHorizontalAlignment::Fill
+    );
+    Action(
+        m_Inspector,
+        "Open graph",
+        [this]
         {
-            Caption(m_Inspector, m_Playing ? "LIVE INPUTS / PLAYING" : "LIVE INPUTS / PAUSED");
-            for (const auto& parameter : m_Document.Parameters)
-            {
-                if (std::holds_alternative<float>(parameter.DefaultValue))
-                {
-                    Caption(m_Inspector, parameter.Name);
-                    Field(
-                        m_Inspector,
-                        std::to_string(
-                            m_Preview->GetParameters().GetFloat(parameter.Name).value_or(0)
-                        ),
-                        [this, name = parameter.Name](const std::string& text)
-                        {
-                            float value;
-                            if (m_Preview && ParseFloat(text, value))
-                                m_Preview->GetParameters().SetFloat(name, value);
-                        }
-                    );
-                }
-                else
-                {
-                    Action(
-                        m_Inspector,
-                        "Toggle live " + parameter.Name,
-                        [this, name = parameter.Name]
-                        {
-                            if (!m_Preview)
-                                return;
-                            auto& parameters = m_Preview->GetParameters();
-                            parameters.SetBool(
-                                name,
-                                !parameters.GetBool(name).value_or(false)
-                            );
-                        }
-                    );
-                }
-            }
+            FileAction(false);
         }
-        BuildAssetInspector();
-    }
-    if (!m_LibraryView && m_State >= 0 && size_t(m_State) < m_Document.Machine.States.size())
-    {
-        const auto& state = m_Document.Machine.States[m_State];
-        Caption(m_Inspector, "STATE NAME");
-        Field(
-            m_Inspector,
-            state.Name,
-            [this](const std::string& value)
-            {
-                if (m_Document.RenameState(m_State, value))
-                {
-                    Changed();
-                    m_Refresh = false;
-                }
-                else
-                    m_Status->SetText("State name must be nonempty and unique.");
-            }
-        );
-        Action(
-            m_Inspector,
-            "Set as entry state",
-            [this]
-            {
-                m_Document.Machine.InitialState = m_Document.Machine.States[m_State].Name;
-                Changed();
-            }
-        );
-        Action(
-            m_Inspector,
-            state.Looping ? "Playback: Loop" : "Playback: Once",
-            [this]
-            {
-                auto& looping = m_Document.Machine.States[m_State].Looping;
-                looping = !looping;
-                Changed();
-            }
-        );
-        Caption(m_Inspector, "REGISTERED SOURCES");
-        for (const auto& [name, source] : m_Sources)
+    );
+    Action(
+        m_Inspector,
+        "Undo",
+        [this]
         {
-            Action(
-                m_Inspector,
-                (source == state.Node ? "* " : "") + name,
-                [this, source]
-                {
-                    if (!source)
-                        return;
-                    m_Document.Machine.States[m_State].Node = source;
-                    if (m_Document.StateSources.size() < m_Document.Machine.States.size())
-                        m_Document.StateSources.resize(m_Document.Machine.States.size());
-                    for (const auto& [name, registered] : m_Sources)
-                        if (registered == source)
-                            m_Document.StateSources[m_State] = name;
-                    m_Document.Machine.States[m_State].InputParameters =
-                        m_Document.Library.Bindings(m_Document.StateSources[m_State]);
-                    Changed();
-                }
-            );
+            History(false);
         }
-        for (size_t i = 0; i < state.InputParameters.size(); ++i)
+    );
+    Action(
+        m_Inspector,
+        "Redo",
+        [this]
         {
-            Caption(m_Inspector, "Input " + std::to_string(i + 1) + " / parameter name");
-            Field(
-                m_Inspector,
-                state.InputParameters[i],
-                [this, i](const std::string& value)
-                {
-                    m_Document.Machine.States[m_State].InputParameters[i] = value;
-                    Changed();
-                    m_Refresh = false;
-                }
-            );
+            History(true);
         }
-        Action(
-            m_Inspector,
-            "Connect to... (then click a state)",
-            [this]
-            {
-                m_ConnectFrom = m_State;
-                m_Status->SetText("Select a destination state. Background click cancels.");
-            }
-        );
-        Action(
-            m_Inspector,
-            "Delete state",
-            [this]
-            {
-                m_Document.RemoveState(size_t(m_State));
-                m_State = -1;
-                m_ConnectFrom = -1;
-                Changed();
-            }
-        );
-    }
-    if (m_Transition >= 0 && size_t(m_Transition) < m_Document.Machine.Transitions.size())
-    {
-        const auto& transition = m_Document.Machine.Transitions[m_Transition];
-        Caption(m_Inspector, transition.From + " > " + transition.To);
-        Caption(m_Inspector, "Fade duration (seconds)");
-        Field(
-            m_Inspector,
-            std::to_string(transition.FadeDuration),
-            [this](const std::string& text)
-            {
-                float value;
-                if (!ParseFloat(text, value) || value < 0)
-                {
-                    m_Status->SetText("Fade must be a finite nonnegative number.");
-                    return;
-                }
-                m_Document.Machine.Transitions[m_Transition].FadeDuration = value;
-                Changed();
-                m_Refresh = false;
-            }
-        );
-        Action(
-            m_Inspector,
-            transition.WaitForCompletion ? "Wait for end: Yes" : "Wait for end: No",
-            [this]
-            {
-                auto& wait = m_Document.Machine.Transitions[m_Transition].WaitForCompletion;
-                wait = !wait;
-                Changed();
-            }
-        );
-        Caption(m_Inspector, "CONDITIONS (all must match)");
-        for (size_t i = 0; i < transition.Conditions.size(); ++i)
-        {
-            const auto& condition = transition.Conditions[i];
-            Field(
-                m_Inspector,
-                condition.Parameter,
-                [this, i](const std::string& value)
-                {
-                    m_Document.Machine.Transitions[m_Transition].Conditions[i].Parameter =
-                        value;
-                    Changed();
-                    m_Refresh = false;
-                }
-            );
-            constexpr const char* comparisons[] = {"==", "!=", "<", "<=", ">", ">="};
-            Action(
-                m_Inspector,
-                comparisons[int(condition.Comparison)],
-                [this, i]
-                {
-                    auto& value = m_Document.Machine.Transitions[m_Transition].Conditions[i];
-                    value.Comparison = EAnimationComparison((int(value.Comparison) + 1) % 6);
-                    Changed();
-                }
-            );
-            const bool boolean = std::holds_alternative<bool>(condition.Value);
-            const auto text = boolean ? (std::get<bool>(condition.Value) ? "true" : "false")
-                                      : std::to_string(std::get<float>(condition.Value));
-            Field(
-                m_Inspector,
-                text,
-                [this, i, boolean](const std::string& value)
-                {
-                    auto& conditionValue =
-                        m_Document.Machine.Transitions[m_Transition].Conditions[i].Value;
-                    float number;
-                    if (boolean && (value == "true" || value == "false"))
-                        conditionValue = value == "true";
-                    else if (!boolean && ParseFloat(value, number))
-                        conditionValue = number;
-                    else
-                    {
-                        m_Status->SetText(
-                            "Enter a finite number, or true / false for a bool."
-                        );
-                        return;
-                    }
-                    Changed();
-                    m_Refresh = false;
-                }
-            );
-            Action(
-                m_Inspector,
-                "Remove condition",
-                [this, i]
-                {
-                    auto& conditions = m_Document.Machine.Transitions[m_Transition].Conditions;
-                    conditions.erase(conditions.begin() + static_cast<std::ptrdiff_t>(i));
-                    Changed();
-                }
-            );
-        }
-        for (const auto& parameter : m_Document.Parameters)
-        {
-            Action(
-                m_Inspector,
-                "+ Condition: " + parameter.Name,
-                [this, parameter]
-                {
-                    m_Document.Machine.Transitions[m_Transition].Conditions.push_back(
-                        {parameter.Name, EAnimationComparison::Equal, parameter.DefaultValue}
-                    );
-                    Changed();
-                }
-            );
-        }
-        Action(
-            m_Inspector,
-            "Move earlier (higher priority)",
-            [this]
-            {
-                if (m_Transition == 0)
-                    return;
-                auto& transitions = m_Document.Machine.Transitions;
-                std::swap(transitions[m_Transition], transitions[m_Transition - 1]);
-                --m_Transition;
-                Changed();
-            }
-        );
-        Action(
-            m_Inspector,
-            "Delete transition",
-            [this]
-            {
-                auto& transitions = m_Document.Machine.Transitions;
-                transitions.erase(transitions.begin() + m_Transition);
-                m_Transition = -1;
-                Changed();
-            }
-        );
-    }
+    );
     Caption(m_Inspector, "PARAMETERS / DEFAULTS");
     for (size_t i = 0; i < m_Document.Parameters.size(); ++i)
     {
@@ -1750,67 +1631,22 @@ void AnimationGraphPanel::RefreshInspector()
             }
         );
     }
-    for (const bool boolean : {false, true})
-    {
-        Action(
-            m_Inspector,
-            boolean ? "+ Bool parameter" : "+ Float parameter",
-            [this, boolean]
-            {
-                size_t suffix = m_Document.Parameters.size() + 1;
-                std::string name;
-                bool exists;
-                do
-                {
-                    name = "Parameter" + std::to_string(suffix++);
-                    exists = false;
-                    for (const auto& parameter : m_Document.Parameters)
-                        exists = exists || parameter.Name == name;
-                } while (exists);
-                TAnimationParameterValue value =
-                    boolean ? TAnimationParameterValue(false) : TAnimationParameterValue(0.0f);
-                m_Document.Parameters.push_back({name, value});
-                Changed();
-            }
-        );
-    }
-    if (m_Preview && !m_LibraryView)
-    {
-        Caption(m_Inspector, m_Playing ? "LIVE PREVIEW / PLAYING" : "LIVE PREVIEW / PAUSED");
-        for (const auto& parameter : m_Document.Parameters)
+    Action(
+        m_Inspector,
+        "+ Float variable",
+        [this]
         {
-            Caption(m_Inspector, parameter.Name + " (live)");
-            if (std::holds_alternative<bool>(parameter.DefaultValue))
-            {
-                Action(
-                    m_Inspector,
-                    "Toggle " + parameter.Name,
-                    [this, name = parameter.Name]
-                    {
-                        if (!m_Preview)
-                            return;
-                        auto& values = m_Preview->GetParameters();
-                        values.SetBool(name, !values.GetBool(name).value_or(false));
-                    }
-                );
-            }
-            else
-            {
-                Field(
-                    m_Inspector,
-                    std::to_string(
-                        m_Preview->GetParameters().GetFloat(parameter.Name).value_or(0)
-                    ),
-                    [this, name = parameter.Name](const std::string& text)
-                    {
-                        float value;
-                        if (m_Preview && ParseFloat(text, value))
-                            m_Preview->GetParameters().SetFloat(name, value);
-                    }
-                );
-            }
+            AddParameter(false);
         }
-    }
+    );
+    Action(
+        m_Inspector,
+        "+ Bool variable",
+        [this]
+        {
+            AddParameter(true);
+        }
+    );
 }
 
 void AnimationGraphPanel::RefreshSources()
@@ -1832,764 +1668,75 @@ void AnimationGraphPanel::RefreshSources()
     }
 }
 
-void AnimationGraphPanel::AddAsset(EAnimationAssetKind kind, bool twoDimensional)
+void AnimationGraphPanel::RefreshPreviewInputs()
 {
-    auto& library = m_Document.Library;
-    size_t suffix = 1;
+    m_PreviewInputs->ClearChildren();
+    if (!m_Preview)
+    {
+        Caption(m_PreviewInputs, "Compile to edit live inputs.");
+        return;
+    }
+    for (const auto& parameter : m_Document.Parameters)
+    {
+        Caption(m_PreviewInputs, parameter.Name);
+        if (std::holds_alternative<bool>(parameter.DefaultValue))
+        {
+            const auto checkbox = CreateRef<GUI::Checkbox>();
+            checkbox->SetStyle(EditorStyle::Get().Checkbox);
+            checkbox->SetChecked(
+                m_Preview->GetParameters().GetBool(parameter.Name).value_or(false)
+            );
+            checkbox->OnCheckedChanged(
+                [this, name = parameter.Name](bool value)
+                {
+                    if (m_Preview)
+                        m_Preview->GetParameters().SetBool(name, value);
+                }
+            );
+            m_PreviewInputs->AddChild(checkbox).SetFixedSize(22);
+        }
+        else
+        {
+            Field(
+                m_PreviewInputs,
+                std::to_string(
+                    m_Preview->GetParameters().GetFloat(parameter.Name).value_or(0)
+                ),
+                [this, name = parameter.Name](const std::string& text)
+                {
+                    float value;
+                    if (m_Preview && ParseFloat(text, value))
+                        m_Preview->GetParameters().SetFloat(name, value);
+                }
+            );
+        }
+    }
+}
+
+void AnimationGraphPanel::SeekPreview(float seconds)
+{
+    if (!m_Preview)
+        Compile();
+    m_Playing = false;
+    if (m_Preview && m_Preview->GetBaseLayer().GetPlayer().Seek(seconds))
+        m_Preview->Update(0);
+}
+
+void AnimationGraphPanel::AddParameter(bool boolean)
+{
+    size_t suffix = m_Document.Parameters.size() + 1;
     std::string name;
     bool exists;
     do
     {
-        name = (kind == EAnimationAssetKind::Sequence     ? "Sequence "
-                : kind == EAnimationAssetKind::BlendSpace ? "Blend "
-                                                          : "Montage ") +
-               std::to_string(suffix++);
+        name = "Parameter" + std::to_string(suffix++);
         exists = false;
-        for (const auto& entry : library.Sequences)
-            exists = exists || entry.Name == name;
-        for (const auto& entry : library.BlendSpaces)
-            exists = exists || entry.Name == name;
-        for (const auto& entry : library.Montages)
-            exists = exists || entry.Name == name;
+        for (const auto& parameter : m_Document.Parameters)
+            exists = exists || parameter.Name == name;
     } while (exists);
-    if (kind == EAnimationAssetKind::Sequence)
-    {
-        SAnimationSequenceAsset asset;
-        asset.Name = name;
-        asset.Skeleton = library.Sequences.empty()
-                             ? Skeleton::Create("Graph Skeleton", {{"Root"}})
-                             : library.Sequences.front().Skeleton;
-        asset.Position = {0, 100.0f * float(library.Sequences.size())};
-        library.Sequences.push_back(asset);
-        m_Asset = int(library.Sequences.size() - 1);
-    }
-    else if (!library.Sequences.empty() && kind == EAnimationAssetKind::BlendSpace)
-    {
-        SAnimationBlendAsset asset;
-        asset.Name = name;
-        asset.TwoDimensional = twoDimensional;
-        const auto& clip = library.Sequences.front().Name;
-        asset.Samples = {{clip, {0, 0}}, {clip, {1, 0}}};
-        if (twoDimensional)
-            asset.Samples.push_back({clip, {0, 1}});
-        asset.Position = {260, 100.0f * float(library.BlendSpaces.size())};
-        library.BlendSpaces.push_back(asset);
-        m_Asset = int(library.BlendSpaces.size() - 1);
-        for (const auto& parameter : {asset.XParameter, asset.YParameter})
-        {
-            bool found = false;
-            for (const auto& existing : m_Document.Parameters)
-                found = found || existing.Name == parameter;
-            if (!found)
-                m_Document.Parameters.push_back({parameter, 0.0f});
-        }
-    }
-    else if (!library.Sequences.empty() && kind == EAnimationAssetKind::Montage)
-    {
-        SAnimationMontageAsset asset;
-        asset.Name = name;
-        asset.Sequence = library.Sequences.front().Name;
-        asset.Sections = {{"Default", 0}};
-        library.Montages.push_back(asset);
-        m_Asset = int(library.Montages.size() - 1);
-    }
-    else
-    {
-        m_Status->SetText("Create a sequence before adding a blend space or montage.");
-        return;
-    }
-    m_AssetKind = kind;
-    m_LibraryView = true;
+    TAnimationParameterValue value =
+        boolean ? TAnimationParameterValue(false) : TAnimationParameterValue(0.0f);
+    m_Document.Parameters.push_back({name, value});
+    m_ShowDefaults = true;
     Changed();
-}
-
-void AnimationGraphPanel::RenameAsset(const std::string& name)
-{
-    if (m_Asset < 0)
-        return;
-    const auto& library = m_Document.Library;
-    const auto previous =
-        m_AssetKind == EAnimationAssetKind::Sequence     ? library.Sequences[m_Asset].Name
-        : m_AssetKind == EAnimationAssetKind::BlendSpace ? library.BlendSpaces[m_Asset].Name
-                                                         : library.Montages[m_Asset].Name;
-    if (!m_Document.Library.Rename(m_AssetKind, size_t(m_Asset), name))
-    {
-        m_Status->SetText("Resource names must be nonempty and unique.");
-        return;
-    }
-    for (auto& source : m_Document.StateSources)
-        if (source == previous)
-            source = name;
-    if (m_Document.OutputSource == previous)
-        m_Document.OutputSource = name;
-    Changed();
-    m_Refresh = false;
-}
-
-void AnimationGraphPanel::DeleteAsset()
-{
-    if (m_Asset < 0)
-        return;
-    auto& library = m_Document.Library;
-    const auto name =
-        m_AssetKind == EAnimationAssetKind::Sequence     ? library.Sequences[m_Asset].Name
-        : m_AssetKind == EAnimationAssetKind::BlendSpace ? library.BlendSpaces[m_Asset].Name
-                                                         : library.Montages[m_Asset].Name;
-    bool used = m_Document.OutputSource == name;
-    for (const auto& source : m_Document.StateSources)
-        used = used || source == name;
-    for (const auto& blend : library.BlendSpaces)
-        for (const auto& sample : blend.Samples)
-            used = used || sample.Sequence == name;
-    for (const auto& montage : library.Montages)
-        used = used || montage.Sequence == name;
-    if (used)
-    {
-        m_Status->SetText("Disconnect this resource from its consumers before deleting it.");
-        return;
-    }
-    if (m_AssetKind == EAnimationAssetKind::Sequence)
-        library.Sequences.erase(library.Sequences.begin() + m_Asset);
-    if (m_AssetKind == EAnimationAssetKind::BlendSpace)
-        library.BlendSpaces.erase(library.BlendSpaces.begin() + m_Asset);
-    if (m_AssetKind == EAnimationAssetKind::Montage)
-        library.Montages.erase(library.Montages.begin() + m_Asset);
-    m_Asset = -1;
-    Changed();
-}
-
-void AnimationGraphPanel::PlayMontage(size_t index)
-{
-    if (!m_Preview)
-        Compile();
-    const auto montage = m_Document.Library.BuildMontage(index);
-    if (m_Preview && montage && m_Preview->GetBaseLayer().GetPlayer().PlayMontage(montage))
-    {
-        m_Playing = true;
-        m_Refresh = true;
-        m_Status->SetText("Montage playing over the continuing graph output.");
-    }
-    else
-        m_Status->SetText("Montage rejected. Check its sequence, sections, and fades.");
-}
-
-void AnimationGraphPanel::BuildAssetInspector()
-{
-    auto& library = m_Document.Library;
-    // These callbacks capture indices instead of references; undo may replace the library.
-    const auto number = [this](const std::string& title, float initial, auto assign)
-    {
-        Caption(m_Inspector, title);
-        Field(
-            m_Inspector,
-            std::to_string(initial),
-            [this, assign](const std::string& text)
-            {
-                float value;
-                if (!ParseFloat(text, value))
-                    return;
-                assign(value);
-                Changed();
-                m_Refresh = false;
-            }
-        );
-    };
-    Caption(
-        m_Inspector,
-        "OUTPUT: " + (m_Document.OutputSource.empty() ? std::string("State Machine")
-                                                      : m_Document.OutputSource)
-    );
-    Action(
-        m_Inspector,
-        "Use state machine as output",
-        [this]
-        {
-            m_Document.OutputSource.clear();
-            Changed();
-        }
-    );
-    if (m_Asset < 0)
-        return;
-    const size_t index = size_t(m_Asset);
-    if ((m_AssetKind == EAnimationAssetKind::Sequence && index >= library.Sequences.size()) ||
-        (m_AssetKind == EAnimationAssetKind::BlendSpace &&
-         index >= library.BlendSpaces.size()) ||
-        (m_AssetKind == EAnimationAssetKind::Montage && index >= library.Montages.size()))
-    {
-        m_Asset = -1;
-        return;
-    }
-    const auto name =
-        m_AssetKind == EAnimationAssetKind::Sequence     ? library.Sequences[index].Name
-        : m_AssetKind == EAnimationAssetKind::BlendSpace ? library.BlendSpaces[index].Name
-                                                         : library.Montages[index].Name;
-    Caption(m_Inspector, "RESOURCE NAME");
-    Field(
-        m_Inspector,
-        name,
-        [this](const std::string& text)
-        {
-            RenameAsset(text);
-        }
-    );
-    Action(
-        m_Inspector,
-        "Delete resource",
-        [this]
-        {
-            DeleteAsset();
-        }
-    );
-    if (m_AssetKind != EAnimationAssetKind::Montage)
-    {
-        Action(
-            m_Inspector,
-            "Connect to Output Pose",
-            [this, name]
-            {
-                m_Document.OutputSource = name;
-                Changed();
-            }
-        );
-        Action(
-            m_Inspector,
-            "Preview this source",
-            [this, name]
-            {
-                m_Document.OutputSource = name;
-                Changed();
-                Compile();
-                m_Playing = bool(m_Preview);
-            }
-        );
-        Action(
-            m_Inspector,
-            m_Document.OutputLooping ? "Output: Loop" : "Output: Once",
-            [this]
-            {
-                m_Document.OutputLooping = !m_Document.OutputLooping;
-                Changed();
-            }
-        );
-    }
-    if (m_Preview)
-    {
-        m_PlaybackStatus = CreateRef<GUI::TextBlock>("Runtime preview");
-        m_PlaybackStatus->SetFontSize(10);
-        m_PlaybackStatus->SetColor(EditorStyle::Get().TextPrimary);
-        m_Inspector->AddChild(m_PlaybackStatus).SetFixedSize(28);
-        Caption(m_Inspector, "Seek base source (seconds)");
-        Field(
-            m_Inspector,
-            std::to_string(m_Preview->GetBaseLayer().GetPlayer().GetTime()),
-            [this](const std::string& text)
-            {
-                float value;
-                if (m_Preview && ParseFloat(text, value))
-                    m_Preview->GetBaseLayer().GetPlayer().Seek(value);
-            }
-        );
-    }
-    if (m_AssetKind == EAnimationAssetKind::Sequence)
-    {
-        const auto& clip = library.Sequences[index];
-        Caption(m_Inspector, "Skeleton: " + clip.Skeleton->GetName());
-        number(
-            "Duration (rescales keys and events)",
-            clip.Duration,
-            [this, index](float value)
-            {
-                auto& clip = m_Document.Library.Sequences[index];
-                if (value <= 0 || clip.Duration <= 0)
-                    return;
-                const float scale = value / clip.Duration;
-                for (auto& track : clip.Tracks)
-                {
-                    for (auto& key : track.Translations)
-                        key.Time *= scale;
-                    for (auto& key : track.Rotations)
-                        key.Time *= scale;
-                    for (auto& key : track.Scales)
-                        key.Time *= scale;
-                }
-                for (auto& marker : clip.Markers)
-                    marker.Time *= scale;
-                for (auto& notify : clip.Notifies)
-                {
-                    notify.Time *= scale;
-                    notify.Duration *= scale;
-                }
-                clip.Duration = value;
-            }
-        );
-        Caption(m_Inspector, "SYNCHRONIZATION MARKERS");
-        for (size_t i = 0; i < clip.Markers.size(); ++i)
-        {
-            Field(
-                m_Inspector,
-                clip.Markers[i].Name,
-                [this, index, i](const std::string& value)
-                {
-                    m_Document.Library.Sequences[index].Markers[i].Name = value;
-                    Changed();
-                    m_Refresh = false;
-                }
-            );
-            number(
-                "Marker time",
-                clip.Markers[i].Time,
-                [this, index, i](float value)
-                {
-                    m_Document.Library.Sequences[index].Markers[i].Time = value;
-                }
-            );
-            Action(
-                m_Inspector,
-                "Remove marker",
-                [this, index, i]
-                {
-                    auto& values = m_Document.Library.Sequences[index].Markers;
-                    values.erase(values.begin() + std::ptrdiff_t(i));
-                    Changed();
-                }
-            );
-        }
-        Action(
-            m_Inspector,
-            "+ Marker",
-            [this, index]
-            {
-                auto& clip = m_Document.Library.Sequences[index];
-                clip.Markers.push_back(
-                    {"Marker " + std::to_string(clip.Markers.size() + 1),
-                     clip.Duration * 0.25f}
-                );
-                Changed();
-            }
-        );
-        Caption(m_Inspector, "NOTIFY EVENTS / WINDOWS");
-        for (size_t i = 0; i < clip.Notifies.size(); ++i)
-        {
-            Field(
-                m_Inspector,
-                clip.Notifies[i].Name,
-                [this, index, i](const std::string& value)
-                {
-                    m_Document.Library.Sequences[index].Notifies[i].Name = value;
-                    Changed();
-                    m_Refresh = false;
-                }
-            );
-            number(
-                "Notify time",
-                clip.Notifies[i].Time,
-                [this, index, i](float value)
-                {
-                    m_Document.Library.Sequences[index].Notifies[i].Time = value;
-                }
-            );
-            number(
-                "Notify duration (0 = instant)",
-                clip.Notifies[i].Duration,
-                [this, index, i](float value)
-                {
-                    m_Document.Library.Sequences[index].Notifies[i].Duration = value;
-                }
-            );
-            Action(
-                m_Inspector,
-                "Remove notify",
-                [this, index, i]
-                {
-                    auto& values = m_Document.Library.Sequences[index].Notifies;
-                    values.erase(values.begin() + std::ptrdiff_t(i));
-                    Changed();
-                }
-            );
-        }
-        Action(
-            m_Inspector,
-            "+ Notify",
-            [this, index]
-            {
-                m_Document.Library.Sequences[index].Notifies.push_back(
-                    {.Name = "Notify", .Time = 0}
-                );
-                Changed();
-            }
-        );
-        Caption(m_Inspector, "BONE TRACKS");
-        for (size_t i = 0; i < clip.Tracks.size(); ++i)
-        {
-            Caption(m_Inspector, "Bone " + std::to_string(clip.Tracks[i].BoneIndex));
-            const auto keys =
-                [&, this](const std::string& channel, auto member, auto interpolation)
-            {
-                const auto& values = clip.Tracks[i].*member;
-                const auto mode = clip.Tracks[i].*interpolation;
-                Action(
-                    m_Inspector,
-                    channel + (mode == EBoneInterpolation::Step ? " interpolation: Step"
-                                                                : " interpolation: Linear"),
-                    [this, index, i, interpolation]
-                    {
-                        auto& mode =
-                            m_Document.Library.Sequences[index].Tracks[i].*interpolation;
-                        mode = mode == EBoneInterpolation::Step ? EBoneInterpolation::Linear
-                                                                : EBoneInterpolation::Step;
-                        Changed();
-                    }
-                );
-                for (size_t j = 0; j < values.size(); ++j)
-                {
-                    number(
-                        channel + " key time",
-                        values[j].Time,
-                        [this, index, i, j, member](float value)
-                        {
-                            (m_Document.Library.Sequences[index].Tracks[i].*member)[j].Time =
-                                value;
-                        }
-                    );
-                    for (int axis = 0; axis < values[j].Value.length(); ++axis)
-                    {
-                        number(
-                            channel + " XYZW"[axis + 1],
-                            values[j].Value[axis],
-                            [this, index, i, j, member, axis](float value)
-                            {
-                                (m_Document.Library.Sequences[index].Tracks[i].*member)[j]
-                                    .Value[axis] = value;
-                            }
-                        );
-                    }
-                    Action(
-                        m_Inspector,
-                        "Remove " + channel + " key",
-                        [this, index, i, j, member]
-                        {
-                            auto& keys = m_Document.Library.Sequences[index].Tracks[i].*member;
-                            keys.erase(keys.begin() + std::ptrdiff_t(j));
-                            Changed();
-                        }
-                    );
-                }
-                Action(
-                    m_Inspector,
-                    "+ " + channel + " key",
-                    [this, index, i, member, channel]
-                    {
-                        auto& clip = m_Document.Library.Sequences[index];
-                        auto& keys = clip.Tracks[i].*member;
-                        using Key = typename std::decay_t<decltype(keys)>::value_type;
-                        Key key;
-                        if constexpr (!std::is_same_v<Key, SRotationAnimationKey>)
-                            if (channel == "Scale")
-                                key.Value = glm::vec3(1);
-                        if (!keys.empty())
-                        {
-                            key.Value = keys.back().Value;
-                            key.Time = clip.Duration;
-                            if (keys.back().Time == clip.Duration)
-                            {
-                                const float previous =
-                                    keys.size() > 1 ? keys[keys.size() - 2].Time : 0;
-                                key.Time = (previous + clip.Duration) * 0.5f;
-                                if (key.Time <= previous || key.Time >= clip.Duration)
-                                    return;
-                            }
-                        }
-                        const auto position =
-                            std::ranges::lower_bound(keys, key.Time, {}, &Key::Time);
-                        keys.insert(position, key);
-                        Changed();
-                    }
-                );
-            };
-            keys(
-                "Translation",
-                &SBoneAnimationTrack::Translations,
-                &SBoneAnimationTrack::TranslationInterpolation
-            );
-            keys(
-                "Rotation",
-                &SBoneAnimationTrack::Rotations,
-                &SBoneAnimationTrack::RotationInterpolation
-            );
-            keys(
-                "Scale",
-                &SBoneAnimationTrack::Scales,
-                &SBoneAnimationTrack::ScaleInterpolation
-            );
-            Action(
-                m_Inspector,
-                "Remove track",
-                [this, index, i]
-                {
-                    auto& tracks = m_Document.Library.Sequences[index].Tracks;
-                    tracks.erase(tracks.begin() + std::ptrdiff_t(i));
-                    Changed();
-                }
-            );
-        }
-        Action(
-            m_Inspector,
-            "+ Bone track (next unanimated bone)",
-            [this, index]
-            {
-                auto& clip = m_Document.Library.Sequences[index];
-                for (size_t bone = 0; bone < clip.Skeleton->GetBones().size(); ++bone)
-                {
-                    bool found = false;
-                    for (const auto& track : clip.Tracks)
-                        found = found || track.BoneIndex == bone;
-                    if (found)
-                        continue;
-                    SBoneAnimationTrack track;
-                    track.BoneIndex = uint32_t(bone);
-                    const auto& pose = clip.Skeleton->GetBones()[bone].ReferenceTransform;
-                    track.Translations = {
-                        {0, pose.Translation},
-                        {clip.Duration, pose.Translation}
-                    };
-                    track.Rotations = {{0, pose.Rotation}, {clip.Duration, pose.Rotation}};
-                    track.Scales = {{0, pose.Scale}, {clip.Duration, pose.Scale}};
-                    clip.Tracks.push_back(track);
-                    Changed();
-                    return;
-                }
-            }
-        );
-    }
-    else if (m_AssetKind == EAnimationAssetKind::BlendSpace)
-    {
-        const auto& blend = library.BlendSpaces[index];
-        Caption(m_Inspector, blend.TwoDimensional ? "BLEND SPACE 2D" : "BLEND SPACE 1D");
-        Caption(m_Inspector, "X parameter binding");
-        Field(
-            m_Inspector,
-            blend.XParameter,
-            [this, index](const std::string& value)
-            {
-                m_Document.Library.BlendSpaces[index].XParameter = value;
-                Changed();
-                m_Refresh = false;
-            }
-        );
-        if (blend.TwoDimensional)
-        {
-            Caption(m_Inspector, "Y parameter binding");
-            Field(
-                m_Inspector,
-                blend.YParameter,
-                [this, index](const std::string& value)
-                {
-                    m_Document.Library.BlendSpaces[index].YParameter = value;
-                    Changed();
-                    m_Refresh = false;
-                }
-            );
-        }
-        for (size_t i = 0; i < blend.Samples.size(); ++i)
-        {
-            Caption(m_Inspector, "SAMPLE " + std::to_string(i + 1) + " / sequence name");
-            Field(
-                m_Inspector,
-                blend.Samples[i].Sequence,
-                [this, index, i](const std::string& value)
-                {
-                    m_Document.Library.BlendSpaces[index].Samples[i].Sequence = value;
-                    Changed();
-                    m_Refresh = false;
-                }
-            );
-            number(
-                "X",
-                blend.Samples[i].Position.x,
-                [this, index, i](float value)
-                {
-                    m_Document.Library.BlendSpaces[index].Samples[i].Position.x = value;
-                }
-            );
-            if (blend.TwoDimensional)
-                number(
-                    "Y",
-                    blend.Samples[i].Position.y,
-                    [this, index, i](float value)
-                    {
-                        m_Document.Library.BlendSpaces[index].Samples[i].Position.y = value;
-                    }
-                );
-            Action(
-                m_Inspector,
-                "Remove sample",
-                [this, index, i]
-                {
-                    auto& samples = m_Document.Library.BlendSpaces[index].Samples;
-                    samples.erase(samples.begin() + std::ptrdiff_t(i));
-                    Changed();
-                }
-            );
-        }
-        Action(
-            m_Inspector,
-            "+ Sample",
-            [this, index]
-            {
-                if (m_Document.Library.Sequences.empty())
-                    return;
-                auto& blend = m_Document.Library.BlendSpaces[index];
-                float x = 0;
-                for (const auto& sample : blend.Samples)
-                    x = std::max(x, sample.Position.x + 1);
-                blend.Samples.push_back({m_Document.Library.Sequences.front().Name, {x, 0}});
-                Changed();
-            }
-        );
-    }
-    else
-    {
-        const auto& montage = library.Montages[index];
-        Caption(m_Inspector, "MONTAGE / LAYER ACTION");
-        Caption(m_Inspector, "Sequence name");
-        Field(
-            m_Inspector,
-            montage.Sequence,
-            [this, index](const std::string& value)
-            {
-                m_Document.Library.Montages[index].Sequence = value;
-                Changed();
-                m_Refresh = false;
-            }
-        );
-        number(
-            "Blend in (seconds)",
-            montage.BlendIn,
-            [this, index](float value)
-            {
-                m_Document.Library.Montages[index].BlendIn = value;
-            }
-        );
-        number(
-            "Blend out (seconds)",
-            montage.BlendOut,
-            [this, index](float value)
-            {
-                m_Document.Library.Montages[index].BlendOut = value;
-            }
-        );
-        Action(
-            m_Inspector,
-            montage.Interruptible ? "Interruptible: Yes" : "Interruptible: No",
-            [this, index]
-            {
-                auto& value = m_Document.Library.Montages[index].Interruptible;
-                value = !value;
-                Changed();
-            }
-        );
-        Action(
-            m_Inspector,
-            "Play montage over graph",
-            [this, index]
-            {
-                PlayMontage(index);
-            }
-        );
-        Action(
-            m_Inspector,
-            "Stop montage",
-            [this]
-            {
-                if (m_Preview)
-                    m_Preview->GetBaseLayer().GetPlayer().StopMontage();
-            }
-        );
-        Caption(m_Inspector, "SECTIONS / PLAYBACK ORDER");
-        for (size_t i = 0; i < montage.Sections.size(); ++i)
-        {
-            const auto& section = montage.Sections[i];
-            Field(
-                m_Inspector,
-                section.Name,
-                [this, index, i](const std::string& value)
-                {
-                    auto& montage = m_Document.Library.Montages[index];
-                    const auto previous = montage.Sections[i].Name;
-                    montage.Sections[i].Name = value;
-                    for (auto& section : montage.Sections)
-                        if (section.NextSection == previous)
-                            section.NextSection = value;
-                    Changed();
-                    m_Refresh = false;
-                }
-            );
-            number(
-                "Section start (seconds)",
-                section.StartTime,
-                [this, index, i](float value)
-                {
-                    m_Document.Library.Montages[index].Sections[i].StartTime = value;
-                }
-            );
-            Caption(m_Inspector, "Next: * = timeline order, empty = end");
-            Field(
-                m_Inspector,
-                section.NextSection.value_or("*"),
-                [this, index, i](const std::string& value)
-                {
-                    auto& next = m_Document.Library.Montages[index].Sections[i].NextSection;
-                    if (value == "*")
-                        next.reset();
-                    else
-                        next = value;
-                    Changed();
-                    m_Refresh = false;
-                }
-            );
-            Action(
-                m_Inspector,
-                "Jump to " + section.Name,
-                [this, name = section.Name]
-                {
-                    if (m_Preview)
-                        m_Preview->GetBaseLayer().GetPlayer().JumpToMontageSection(name);
-                }
-            );
-            Action(
-                m_Inspector,
-                "Remove section",
-                [this, index, i]
-                {
-                    auto& values = m_Document.Library.Montages[index].Sections;
-                    const auto name = values[i].Name;
-                    values.erase(values.begin() + std::ptrdiff_t(i));
-                    for (auto& section : values)
-                        if (section.NextSection == name)
-                            section.NextSection.reset();
-                    Changed();
-                }
-            );
-        }
-        Action(
-            m_Inspector,
-            "+ Section",
-            [this, index]
-            {
-                auto& montage = m_Document.Library.Montages[index];
-                float duration = 0;
-                for (const auto& clip : m_Document.Library.Sequences)
-                    if (clip.Name == montage.Sequence)
-                        duration = clip.Duration;
-                const float start =
-                    montage.Sections.empty()
-                        ? 0
-                        : (montage.Sections.back().StartTime + duration) * 0.5f;
-                montage.Sections.push_back(
-                    {"Section " + std::to_string(montage.Sections.size() + 1), start}
-                );
-                Changed();
-            }
-        );
-    }
 }
