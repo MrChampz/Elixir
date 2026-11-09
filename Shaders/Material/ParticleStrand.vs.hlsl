@@ -25,12 +25,6 @@ struct PushConstants
     uint OrderStep;
     uint MaterialIndex;
     uint MaxPoints;
-    float RootWidthScale;
-    float TipWidthScale;
-    float WidthExponent;
-    float BranchWidthScale;
-    uint HasGrowth;
-    uint BranchCount;
 };
 
 [[vk::push_constant]]
@@ -105,7 +99,7 @@ VSOutput main(uint vertexId : SV_VertexID, uint instanceId : SV_InstanceID)
     SGPUParticle first = particles[pc.ParticleOffset + instanceId];
     SGPUParticle second = particles[pc.ParticleOffset + nextSlot];
 
-    if (!Connected(first, second) || (pc.HasGrowth != 0 && second.Transform.z <= 0))
+    if (!Connected(first, second))
         return output;
 
     SGPUParticle previous = particles[pc.ParticleOffset + PreviousSlot(instanceId)];
@@ -139,16 +133,6 @@ VSOutput main(uint vertexId : SV_VertexID, uint instanceId : SV_InstanceID)
     float3 circumference = -sin(angle) * side + cos(angle) * up;
     float radius = lerp(first.Size * max(first.Transform.y, 0.0),
         second.Size * max(second.Transform.y, 0.0), u) * pc.WidthScale * 0.0016;
-
-    uint pointIndex = (first.LinkOrder / pc.OrderStep) % max(pc.MaxPoints, 2);
-    float chainPosition = float(pointIndex) + u;
-    float front = pc.HasGrowth != 0
-        ? first.Transform.w + float(pointIndex) : float(pc.MaxPoints - 1);
-    float alongChain = saturate(chainPosition / max(front, 0.0001));
-    if (pc.MaxPoints > 0)
-        radius *= lerp(pc.RootWidthScale, pc.TipWidthScale, pow(alongChain, pc.WidthExponent));
-    if (first.LinkOrder % pc.OrderStep % (pc.BranchCount + 1) != 0)
-        radius *= pc.BranchWidthScale;
 
     float3 world = mul(pc.WorldTransform, float4(position + radial * radius, 1)).xyz;
     float3 worldTangent = mul((float3x3)pc.WorldTransform, tangent);

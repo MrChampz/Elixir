@@ -1,12 +1,13 @@
 #pragma once
 
-#include <Engine/Aether/Simulation/ParticleConstraints.h>
+#include "VegetationSettings.h"
 #include <Engine/Core/Core.h>
 #include <glm/glm.hpp>
 #include <optional>
 
-namespace Elixir::Aether::Simulation
+namespace EditorVFX
 {
+    using namespace Elixir;
     /** Packs one analytic world surface for the constraint shader. */
     struct SConstraintSurfaceData
     {
@@ -38,7 +39,7 @@ namespace Elixir::Aether::Simulation
         /** World climb direction and maximum branch delay in seconds. */
         glm::vec4 ClimbDelay{0, 1, 0, 0};
         /** Static world surfaces; Counts.y selects the active prefix. */
-        std::array<SConstraintSurfaceData, Core::SStrandSurfaceSettings::Capacity> Surfaces{};
+        std::array<SConstraintSurfaceData, SStrandSurfaceSettings::Capacity> Surfaces{};
     };
 
     /**
@@ -47,8 +48,8 @@ namespace Elixir::Aether::Simulation
      * @param world Transform from simulation coordinates to world coordinates.
      * @return Uniform data, or no data for invalid settings or a singular transform.
      */
-    ELIXIR_API std::optional<SConstraintFrameData> BuildConstraintFrameData(
-        const SDistanceConstraint& config,
+    std::optional<SConstraintFrameData> BuildConstraintFrameData(
+        const VegetationSettings& config,
         const glm::mat4& world
     );
 }

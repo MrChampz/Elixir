@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <cmath>
 
-namespace Elixir::Aether::Core
+namespace EditorVFX
 {
     /** Selects the strand development state independently of physical motion. */
     enum class EStrandGrowthState : uint32_t

@@ -1,10 +1,10 @@
-#include "epch.h"
-#include "ConstraintData.h"
+#include <epch.h>
+#include "VegetationData.h"
 
-namespace Elixir::Aether::Simulation
+namespace EditorVFX
 {
     std::optional<SConstraintFrameData> BuildConstraintFrameData(
-        const SDistanceConstraint& config,
+        const VegetationSettings& config,
         const glm::mat4& world
     )
     {
@@ -22,7 +22,8 @@ namespace Elixir::Aether::Simulation
         result.Simulation = glm::inverse(world);
         for (uint32_t column = 0; column < 4; ++column)
             for (uint32_t row = 0; row < 4; ++row)
-                if (!std::isfinite(result.Simulation[column][row])) return std::nullopt;
+                if (!std::isfinite(result.Simulation[column][row]))
+                    return std::nullopt;
         const auto& growth = config.Growth;
         const auto& surface = config.SurfaceAttachment;
         result.Topology = {
@@ -52,9 +53,11 @@ namespace Elixir::Aether::Simulation
             const auto& shape = surface.Surfaces[index];
             auto& packed = result.Surfaces[index];
             packed.CenterType = glm::vec4(shape.Center, float(shape.Type));
-            packed.NormalRadius = glm::vec4(shape.Type == Core::EStrandSurfaceType::Plane
-                    ? glm::normalize(shape.Normal) : glm::vec3(0, 0, 1),
-                shape.Radius);
+            packed.NormalRadius = glm::vec4(
+                shape.Type == EStrandSurfaceType::Plane ? glm::normalize(shape.Normal)
+                                                        : glm::vec3(0, 0, 1),
+                shape.Radius
+            );
             packed.ExtentsRounding = glm::vec4(shape.HalfExtents, shape.Rounding);
         }
         return result;

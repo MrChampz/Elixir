@@ -4,6 +4,7 @@
 #include <Engine/Aether/Core/ResourceAllocation.h>
 #include <Engine/Aether/Simulation/RenderFrame.h>
 #include <Engine/Aether/Simulation/ResourcePool.h>
+#include <Engine/Aether/Simulation/ParticleProcessor.h>
 #include <Engine/Aether/Rendering/FrameSubmission.h>
 
 namespace Elixir
@@ -298,6 +299,26 @@ namespace Elixir::Aether::Simulation
             float initialTime
         );
 
+        /**
+         * @brief Runs optional application stages for all emitters in one layout batch.
+         * @param cmd Recording command buffer.
+         * @param batch Submitted instances sharing a particle layout.
+         * @param deltaSeconds Duration of this simulation step, in seconds.
+         */
+        void ProcessParticles(
+            const Ref<CommandBuffer>& cmd,
+            const SSimulationBatch& batch,
+            float deltaSeconds
+        );
+
+        struct SProcessorRuntime
+        {
+            Ref<const ParticleProcessor> Description;
+            Scope<ParticleProcessorRuntime> Runtime;
+            uint32_t LastFrame = 0;
+        };
+        std::vector<SProcessorRuntime> m_Processors;
+
         SResourcePoolLimits m_Limits;
         ParticleStateLayoutRegistry m_ParticleStateLayouts;
         std::vector<SParticleStateLayoutRuntime> m_ParticleStateLayoutRuntimes;
@@ -330,7 +351,6 @@ namespace Elixir::Aether::Simulation
         Ref<DynamicStorageBuffer> m_ConstantBuffer;
         Ref<DynamicStorageBuffer> m_ParameterBuffer;
         Ref<UniformBuffer> m_ParamsBuffer;
-        Ref<UniformBuffer> m_ConstraintConstants;
 
         Ref<Shader> m_SchedulerBeginShader;
         Ref<ComputePipeline> m_SchedulerBeginPipeline;
@@ -341,7 +361,6 @@ namespace Elixir::Aether::Simulation
         Ref<Shader> m_SchedulerFinalizeShader;
         Ref<ComputePipeline> m_SchedulerFinalizePipeline;
 
-        bool m_StrandGrowthPaused = false;
         uint64_t m_SubmissionSerial = 0;
         SSimulationMetrics m_LastMetrics{};
 

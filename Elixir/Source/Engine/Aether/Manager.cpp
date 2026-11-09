@@ -110,11 +110,6 @@ namespace Elixir::Aether
     {
     }
 
-    void Manager::SetStrandGrowthPaused(const bool paused)
-    {
-        GetSimulator().m_StrandGrowthPaused = paused;
-    }
-
     const SSimulationMetrics& Manager::GetLastSimulationMetrics() const
     {
         return GetSimulator().GetLastMetrics();

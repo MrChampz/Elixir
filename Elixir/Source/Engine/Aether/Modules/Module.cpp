@@ -133,18 +133,6 @@ namespace Elixir::Aether::Modules
         m_ModuleData.Constraints.push_back(constraint);
     }
 
-    void ModuleCompileContext::EmitStrandGrowth(const SStrandGrowthSettings& settings)
-    {
-        if (!m_Valid) return;
-        if (m_Growth || !settings.IsValid())
-        {
-            EE_CORE_ERROR("Emitter '{}' requires one valid growth module.", m_EmitterName);
-            m_Valid = false;
-            return;
-        }
-        m_Growth = settings;
-    }
-
     SGPUOperand ModuleCompileContext::Scalar(const float value, const std::string_view parameter)
     {
         const uint32_t words[]{ std::bit_cast<uint32_t>(value) };

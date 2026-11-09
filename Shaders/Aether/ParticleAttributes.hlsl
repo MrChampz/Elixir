@@ -79,7 +79,7 @@ SGPUParticle StoreAttributes(SGPUParticle state, AttributeTable table, float age
     state.Size = table.Size.x;
     state.Velocity = table.Velocity.xyz;
     state.Age = age;
-    // Development state survives ordinary particle updates. Spawning resets both words.
+    // Preserve application-owned words while updating the built-in attributes.
     state.Transform.xy = float2(table.Rotation.x, table.Scale.x);
     state.Tangent = table.Tangent.xyz;
     state.GroupId = table.GroupId;

@@ -191,12 +191,6 @@ namespace Elixir::Aether
          */
         const SRenderingMetrics& GetLastRenderingMetrics() const;
 
-        /**
-         * @brief Pauses development while leaving particle physics active.
-         * @param paused Whether development clocks should stop on the render-frame thread.
-         */
-        void SetStrandGrowthPaused(bool paused);
-
     protected:
         /**
          * @brief Exposes the final immutable simulation frame to application renderers.

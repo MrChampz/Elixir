@@ -1,9 +1,5 @@
 #pragma once
 
-#include <Engine/Aether/Core/StrandGrowthSettings.h>
-#include <Engine/Aether/Core/StrandEndAttachment.h>
-#include <Engine/Aether/Core/StrandSurfaceSettings.h>
-
 namespace Elixir::Aether::Simulation
 {
     /**
@@ -31,18 +27,6 @@ namespace Elixir::Aether::Simulation
         /** Fraction of distance error corrected per iteration, from 0 to 1. */
         float Stiffness = 0.85f;
 
-        /** Enables development of the existing particle chains without extra point storage. */
-        bool HasGrowth = false;
-
-        /** Development timing and branch topology, used when HasGrowth is true. */
-        Core::SStrandGrowthSettings Growth;
-
-        /** Optional fixed destination for the last particle of each main chain. */
-        Core::SStrandEndAttachment EndAttachment;
-
-        /** Static world surfaces that guide and hold chain particles. */
-        Core::SStrandSurfaceSettings SurfaceAttachment;
-
         /** @brief Reports whether all constraint values are valid. */
         bool IsValid() const
         {
@@ -53,12 +37,7 @@ namespace Elixir::Aether::Simulation
                 SegmentLength > 0 &&
                 std::isfinite(Stiffness) &&
                 Stiffness >= 0 &&
-                Stiffness <= 1 && EndAttachment.IsValid() && SurfaceAttachment.IsValid() &&
-                (!HasGrowth || (Growth.IsValid() &&
-                    OrderStep % (Growth.BranchCount + 1) == 0 &&
-                    uint64_t(Growth.BranchCount) * Growth.BranchInterval < MaxPoints - 1 &&
-                    (!EndAttachment.Enabled || Growth.Speed == 0 ||
-                        Growth.State == Core::EStrandGrowthState::Mature)));
+                Stiffness <= 1;
         }
     };
 }

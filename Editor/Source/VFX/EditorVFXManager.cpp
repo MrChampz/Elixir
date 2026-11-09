@@ -3,6 +3,8 @@
 #include <Engine/Logging/Log.h>
 #include <cmath>
 #include <vector>
+#include <fstream>
+#include <iterator>
 
 void EditorVFXManager::Replay(const Elixir::Camera& camera,
     const Elixir::Ref<Elixir::Image>& sceneTarget, const float targetSeconds)
@@ -29,8 +31,9 @@ EditorVFXManager::EditorVFXManager(
     Elixir::Materials::MaterialRegistry& registry,
     Elixir::Materials::MaterialSystem& materials
 )
-    : Manager(context, loader, registry, materials), m_Leaves(context, loader),
-      m_Balloons(context, loader)
+    : Manager(context, loader, registry, materials),
+      m_Playback(Elixir::CreateRef<EditorVFX::VegetationPlayback>()),
+      m_Vegetation(context, loader), m_Leaves(context, loader), m_Balloons(context, loader)
 {
 }
 
@@ -47,6 +50,7 @@ void EditorVFXManager::OnRenderFrame(
     const Elixir::Ref<Elixir::Image>&
 )
 {
+    m_Vegetation.Prepare(frame, camera);
     m_Leaves.Prepare(frame, camera);
     m_Balloons.Prepare(frame, camera);
 }
@@ -56,6 +60,7 @@ void EditorVFXManager::RenderCustomRenderers(
     const Elixir::Ref<Elixir::Image>& depth
 )
 {
+    m_Vegetation.Render(color, depth);
     m_Leaves.Render(color, depth);
     m_Balloons.Render(color, depth);
 }
@@ -65,4 +70,27 @@ void EditorVFXManager::SetBalloonRenderers(
 )
 {
     m_Balloons.SetSettings(std::move(settings));
+}
+
+Elixir::Ref<Elixir::Aether::System> EditorVFXManager::ParseEffect(
+    const std::string_view source,
+    std::string* error
+) const
+{
+    return EditorVFX::ParseVegetationEffect(source, error, m_Playback);
+}
+
+Elixir::Ref<Elixir::Aether::System> EditorVFXManager::LoadEffect(
+    const std::filesystem::path& path
+) const
+{
+    std::ifstream stream(path);
+    if (!stream) return nullptr;
+    const std::string source{std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
+    return ParseEffect(source);
+}
+
+void EditorVFXManager::SetStrandGrowthPaused(const bool paused)
+{
+    m_Playback->Paused.store(paused);
 }

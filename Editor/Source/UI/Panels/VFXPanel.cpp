@@ -605,7 +605,7 @@ void VFXPanel::OpenAsset(const std::filesystem::path& path, const bool reload)
         Document loaded; std::string error;
         if (!loaded.Load(path, error)) { UpdateStatus(error); return; }
         // Validate before replacing any unsaved session or preview.
-        if (!Aether::Effect::ParseEffect(loaded.Root().JSON(), &error)) { UpdateStatus(error); return; }
+        if (!m_Manager.ParseEffect(loaded.Root().JSON(), &error)) { UpdateStatus(error); return; }
         session = m_Documents.insert_or_assign(path, std::move(loaded)).first;
     }
     m_Document = &session->second; m_SelectedPath = path; m_Drafts.clear();
@@ -636,7 +636,7 @@ bool VFXPanel::CompilePreview()
         UpdateStatus("Compile failed: " + error);
         return false;
     }
-    const auto replacement = Aether::Effect::ParseEffect(m_Document->Root().JSON(), &error);
+    const auto replacement = m_Manager.ParseEffect(m_Document->Root().JSON(), &error);
     if (!replacement) { UpdateStatus("Compile failed: " + error); return false; }
     const auto existing = m_LoadedSystems.find(m_SelectedPath);
     const auto current = existing == m_LoadedSystems.end() ? nullptr : existing->second;

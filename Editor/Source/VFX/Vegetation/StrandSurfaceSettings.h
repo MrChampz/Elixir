@@ -5,7 +5,7 @@
 #include <cmath>
 #include <glm/glm.hpp>
 
-namespace Elixir::Aether::Core
+namespace EditorVFX
 {
     /** Defines a static analytic surface in world coordinates. */
     enum class EStrandSurfaceType : uint32_t

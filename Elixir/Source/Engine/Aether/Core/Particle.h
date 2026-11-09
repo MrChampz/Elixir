@@ -25,7 +25,9 @@ namespace Elixir::Aether::Core
         Sprite = 0,
         Ribbon = 1,
         Mesh   = 2,
-        Strand = 3
+        Strand = 3,
+        /** Simulates particles without submitting built-in geometry. */
+        None = 4
     };
 
     enum class EParticleSimulationSpace : uint8_t

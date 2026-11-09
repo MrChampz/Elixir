@@ -84,7 +84,7 @@ bool StrandsPanel::LoadSample(int index)
         m_LoadError = "Could not load sample renderers: " + error;
         return false;
     }
-    const auto system = Aether::Manager::LoadEffect(path);
+    const auto system = m_Manager.LoadEffect(path);
     auto instance = system ? system->CreateInstance() : nullptr;
     if (instance) instance->SetWorldTransform(glm::translate(glm::mat4(1), m_Position));
     bool added = false;

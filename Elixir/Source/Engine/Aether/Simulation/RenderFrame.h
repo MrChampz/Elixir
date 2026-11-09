@@ -6,7 +6,6 @@
 #include <Engine/Aether/Core/ParticleStateLayout.h>
 #include <Engine/Aether/Core/ResourceAllocation.h>
 #include <Engine/Aether/Rendering/EmitterRenderConfig.h>
-#include <Engine/Aether/Simulation/ParticleConstraints.h>
 
 namespace Elixir::Aether::Simulation
 {
@@ -46,9 +45,6 @@ namespace Elixir::Aether::Simulation
 
         /** Immutable geometry configuration for this emitter. */
         Ref<const SEmitterRenderConfig> RenderConfig;
-
-        /** Optional chain metadata copied from the compiled constraint for attachments. */
-        std::optional<SDistanceConstraint> Constraint;
     };
 
     /**

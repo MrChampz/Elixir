@@ -7,7 +7,7 @@ struct SGPUParticle
     float  Size;
     float3 Velocity;
     float  Age;
-    // x = rotation, y = scale. Development owns z = clock/visibility, w = front distance.
+    // x = rotation, y = scale; z and w are persistent application data.
     float4 Transform;
     float3 Tangent;
     uint   GroupId;

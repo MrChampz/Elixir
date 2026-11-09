@@ -47,12 +47,6 @@ namespace Elixir::Aether::Rendering
             uint32_t OrderStep = 1;
             uint32_t MaterialIndex = UINT32_MAX;
             uint32_t MaxPoints = 0;
-            float RootWidthScale = 1;
-            float TipWidthScale = 1;
-            float WidthExponent = 1;
-            float BranchWidthScale = 1;
-            uint32_t HasGrowth = 0;
-            uint32_t BranchCount = 0;
         };
     }
 
@@ -329,6 +323,7 @@ namespace Elixir::Aether::Rendering
 
         for (const auto& item : frame.GetItems())
         {
+            if (item.RenderMode == EParticleRenderMode::None) continue;
             const auto geometry = getGeometry(item.ParticleStateLayout);
             if (!geometry) continue;
 
@@ -410,13 +405,6 @@ namespace Elixir::Aether::Rendering
                         .WidthScale = config->WidthScale,
                         .OrderStep = config->OrderStep,
                         .MaxPoints = config->MaxPoints,
-                        .RootWidthScale = config->RootWidthScale,
-                        .TipWidthScale = config->TipWidthScale,
-                        .WidthExponent = config->WidthExponent,
-                        .BranchWidthScale = config->BranchWidthScale,
-                        .HasGrowth = item.Constraint && item.Constraint->HasGrowth ? 1u : 0u,
-                        .BranchCount = item.Constraint && item.Constraint->HasGrowth
-                            ? item.Constraint->Growth.BranchCount : 0u,
                     };
 
                     scene.Add({

@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <cmath>
 
-namespace Elixir::Aether::Core
+namespace EditorVFX
 {
     /** Selects the coordinate space of a fixed strand endpoint. */
     enum class EStrandEndSpace : uint32_t

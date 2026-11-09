@@ -1,6 +1,5 @@
 #include "epch.h"
 #include "Simulator.h"
-#include "ConstraintData.h"
 
 #include <Engine/Core/Timer.h>
 #include <Engine/Aether/Core/Operation.h>
@@ -215,6 +214,12 @@ namespace Elixir::Aether::Simulation
     {
         if (!m_ConstantBuffer || !m_ParameterBuffer) return;
         ProcessCompletedRetirements();
+        const auto frame = m_GraphicsContext->GetFrameNumber();
+        const auto unused = [frame](const SProcessorRuntime& processor)
+        {
+            return frame - processor.LastFrame >= GraphicsContext::FRAMES;
+        };
+        std::erase_if(m_Processors, unused);
         m_ParameterUploads[m_GraphicsContext->GetFrameIndex()].clear();
         m_LastDeltaTimeSeconds = timestep.GetSeconds();
         m_ElapsedTimeSeconds += timestep.GetSeconds();
@@ -245,8 +250,6 @@ namespace Elixir::Aether::Simulation
         if (!cmd ||
             !m_ConstantBuffer ||
             !m_ParameterBuffer ||
-            !m_ConstraintConstants ||
-            !m_ConstraintConstants->IsValid() ||
             steps.empty())
             return nullptr;
 
@@ -589,11 +592,6 @@ namespace Elixir::Aether::Simulation
             sizeof(SParamsData)
         );
 
-        m_ConstraintConstants = UniformBuffer::Create(
-            m_GraphicsContext,
-            sizeof(SConstraintFrameData)
-        );
-
         m_EmitterStateBuffer->Clear();
         m_SpawnRequestBuffer->Clear();
         m_TriggerQueueStateBuffer->Clear();
@@ -708,10 +706,6 @@ namespace Elixir::Aether::Simulation
 
         if (runtime.ConstraintShader)
         {
-            runtime.ConstraintShader->BindConstantBuffer(
-                "cbConstraint",
-                m_ConstraintConstants
-            );
             constexpr SConstraintPushConstants constraintConstants{};
             runtime.ConstraintShader->SetPushConstant(
                 "pc",
@@ -1074,8 +1068,6 @@ namespace Elixir::Aether::Simulation
                     .ParticleCount = emitter.MaxParticles,
                     .RenderConfig = emitter.RenderConfig,
                 };
-                if (emitter.ConstraintCount == 1)
-                    item.Constraint = system.ModuleData.Constraints[emitter.ConstraintOffset];
                 items.push_back(std::move(item));
             }
         }
@@ -1245,42 +1237,6 @@ namespace Elixir::Aether::Simulation
                     for (uint32_t index = 0; index < emitter.ConstraintCount; ++index)
                     {
                         const auto& config = constraints[emitter.ConstraintOffset + index];
-                        auto data = BuildConstraintFrameData(
-                            config,
-                            GetParticleRenderTransform(emitter, *instance->Proxy)
-                        );
-                        if (!data)
-                        {
-                            EE_CORE_ERROR("Cannot simulate chains with invalid transforms.");
-                            continue;
-                        }
-                        if (m_StrandGrowthPaused && data->Topology.w == 0)
-                            data->Topology.w = uint32_t(EStrandGrowthState::Paused);
-                        const auto upload = StagingBuffer::Create(
-                            m_GraphicsContext,
-                            sizeof(*data),
-                            &*data
-                        );
-                        if (!upload || !upload->IsValid())
-                        {
-                            EE_CORE_ERROR("Could not upload chain constraint constants.");
-                            continue;
-                        }
-                        auto& uploads = m_ParameterUploads[m_GraphicsContext->GetFrameIndex()];
-                        uploads.push_back(upload);
-                        // Keep the descriptor fixed. Ordered copies give every dispatch its
-                        // own values without updating a descriptor already recorded by Vulkan.
-                        m_ConstraintConstants->Barrier(
-                            cmd,
-                            EPipelineStage::Transfer,
-                            EPipelineAccess::TransferWrite
-                        );
-                        cmd->CopyBuffer(upload, m_ConstraintConstants);
-                        m_ConstraintConstants->Barrier(
-                            cmd,
-                            EPipelineStage::ComputeShader,
-                            EPipelineAccess::UniformRead
-                        );
                         const SConstraintPushConstants pc{
                             .ParticleOffset = instance->Allocation.Particles.Offset +
                                 emitter.LocalParticleOffset,
@@ -1310,6 +1266,72 @@ namespace Elixir::Aether::Simulation
                         );
                     }
                 }
+            }
+        }
+        ProcessParticles(cmd, batch, deltaSeconds);
+    }
+
+    void Simulator::ProcessParticles(
+        const Ref<CommandBuffer>& cmd,
+        const SSimulationBatch& batch,
+        const float deltaSeconds
+    )
+    {
+        const auto* layout = FindParticleStateLayoutRuntime(batch.ParticleStateLayout);
+        if (!layout)
+            return;
+        for (const auto* instance : batch.Instances)
+        {
+            for (const auto& emitter : instance->Proxy->GetCompiledSystem().Emitters)
+            {
+                if (!emitter.Processor || emitter.MaxParticles == 0)
+                    continue;
+                auto found = std::find_if(
+                    m_Processors.begin(),
+                    m_Processors.end(),
+                    [&emitter](const SProcessorRuntime& entry)
+                    {
+                        return entry.Description == emitter.Processor;
+                    }
+                );
+                if (found == m_Processors.end())
+                {
+                    const ShaderLoader loader(m_GraphicsContext);
+                    auto runtime = emitter.Processor->CreateRuntime(m_GraphicsContext, loader);
+                    if (!runtime)
+                        EE_CORE_ERROR("Could not initialize application particle processing.");
+                    m_Processors.push_back(
+                        {emitter.Processor,
+                         std::move(runtime),
+                         m_GraphicsContext->GetFrameNumber()}
+                    );
+                    found = std::prev(m_Processors.end());
+                }
+                found->LastFrame = m_GraphicsContext->GetFrameNumber();
+                if (!found->Runtime)
+                    continue;
+                layout->ParticleStateBuffer->Barrier(
+                    cmd,
+                    EPipelineStage::ComputeShader,
+                    EPipelineAccess::ShaderRead | EPipelineAccess::ShaderWrite
+                );
+                const SParticleProcessingContext context{
+                    .Command = cmd,
+                    .Particles = layout->ParticleStateBuffer,
+                    .Layout = batch.ParticleStateLayout,
+                    .ParticleOffset =
+                        instance->Allocation.Particles.Offset + emitter.LocalParticleOffset,
+                    .ParticleCount = emitter.MaxParticles,
+                    .DeltaSeconds = deltaSeconds,
+                    .WorldTransform = GetParticleRenderTransform(emitter, *instance->Proxy),
+                };
+                if (!found->Runtime->Record(context))
+                    EE_CORE_ERROR("Application particle processing failed.");
+                layout->ParticleStateBuffer->Barrier(
+                    cmd,
+                    EPipelineStage::ComputeShader,
+                    EPipelineAccess::ShaderRead | EPipelineAccess::ShaderWrite
+                );
             }
         }
     }

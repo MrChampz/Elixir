@@ -8,6 +8,7 @@
 #include <Engine/Aether/Core/ColorCurveStore.h>
 #include <Engine/Aether/Modules/Module.h>
 #include <Engine/Aether/Simulation/SolverConfig.h>
+#include <Engine/Aether/Simulation/ParticleProcessor.h>
 #include <Engine/Aether/Rendering/EmitterRenderConfig.h>
 #include <Engine/Aether/Effect/MaterialDescription.h>
 #include <Engine/Aether/Effect/MaterialFactory.h>
@@ -54,6 +55,9 @@ namespace Elixir::Aether
 
         /** Immutable geometry configuration interpreted by the selected renderer. */
         Ref<const Rendering::SEmitterRenderConfig> RenderConfig;
+
+        /** Optional immutable application stage, independent of the render mode. */
+        Ref<const Simulation::ParticleProcessor> Processor;
 
         // Material instance submitted to the material system with each frame.
         Ref<MaterialInstance> Material;
@@ -192,6 +196,22 @@ namespace Elixir::Aether
          * @pre Do not modify the configuration through mutable aliases after assignment.
          */
         bool SetRenderConfig(Ref<const Rendering::SEmitterRenderConfig> config);
+
+        /**
+         * @brief Assigns application processing after integration and built-in constraints.
+         * @param processor Immutable description; null disables application processing.
+         * @pre Do not change the description through mutable aliases after assignment.
+         */
+        void SetParticleProcessor(Ref<const Simulation::ParticleProcessor> processor)
+        {
+            m_Processor = std::move(processor);
+        }
+
+        /** @brief Returns the optional application processor description. */
+        const Ref<const Simulation::ParticleProcessor>& GetParticleProcessor() const
+        {
+            return m_Processor;
+        }
 
         /** @brief Reports whether lifetime expiry removes particles from this emitter. */
         bool ShouldKillOnLifetimeExpired() const { return m_KillOnLifetimeExpired; }
@@ -390,6 +410,7 @@ namespace Elixir::Aether
         Ref<MaterialInstance> m_Material;
         bool m_MaterialIsResolved = false;
 
+        Ref<const Simulation::ParticleProcessor> m_Processor;
         std::vector<Scope<Module>> m_Modules;
 
         uint32_t m_MaxParticles;

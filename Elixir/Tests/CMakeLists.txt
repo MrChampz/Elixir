@@ -21,6 +21,8 @@ target_link_libraries(${PROJECT_NAME}.UnitTests PRIVATE
 set(TEST_SHADER_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Shaders")
 set(TEST_SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/Shaders")
 file(GLOB_RECURSE TEST_HLSL_FILES CONFIGURE_DEPENDS "${TEST_SHADER_SOURCE_DIR}/*.hlsl")
+file(GLOB_RECURSE TEST_SHADER_INCLUDES CONFIGURE_DEPENDS
+    "${CMAKE_SOURCE_DIR}/Shaders/*.hlsl")
 set(TEST_SPIRV_OUTPUTS "")
 if(DXC)
     foreach(SHADER_FILE IN LISTS TEST_HLSL_FILES)
@@ -35,7 +37,7 @@ if(DXC)
             COMMAND "${CMAKE_COMMAND}" -E make_directory "${SPIRV_OUTPUT_DIR}"
             COMMAND "${DXC}" -spirv -T ${PROFILE} -E main
                     -I "${TEST_SHADER_SOURCE_DIR}" "${SHADER_FILE}" -Fo "${SPIRV_OUTPUT}"
-            DEPENDS "${SHADER_FILE}"
+            DEPENDS "${SHADER_FILE}" ${TEST_SHADER_INCLUDES}
             COMMENT "Compiling test shader: ${REL_PATH}"
             VERBATIM
         )
@@ -55,7 +57,7 @@ include (GoogleTest)
 # (SwiftShader) does not provide. Tag them with the "gpu" label via a separate
 # discovery pass so CI can skip them with `ctest -LE gpu` while still running
 # the pure unit tests (converters, initializers, traits, ...).
-set(GPU_TEST_FILTER "VulkanBufferTest.*:VulkanImageTest.*:VulkanSkinningTest.*:VulkanDescriptorPoolTest.*:VulkanShaderTest.*:VulkanMaterialGraphTest.*:ParticlesConstraintsTest.*")
+set(GPU_TEST_FILTER "VulkanBufferTest.*:VulkanImageTest.*:VulkanSkinningTest.*:VulkanDescriptorPoolTest.*:VulkanShaderTest.*:VulkanMaterialGraphTest.*:ParticlesConstraintsTest.*:ParticleProcessorGpuTest.*")
 
 gtest_discover_tests(${PROJECT_NAME}.UnitTests
     TEST_FILTER "${GPU_TEST_FILTER}"

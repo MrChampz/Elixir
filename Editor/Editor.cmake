@@ -120,7 +120,9 @@ endif()
 # Application shaders belong to Editor and are never packaged with Engine targets.
 if (DXC)
     set(EDITOR_SHADER_OUTPUTS "")
-    foreach(shader Leaf Balloon)
+    file(GLOB EDITOR_SHADER_INCLUDES CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_LIST_DIR}/Shaders/*.hlsl")
+    foreach(shader Leaf Balloon Vegetation)
         foreach(stage vs ps)
             get_dxc_profile("${stage}" profile)
             set(source "${CMAKE_CURRENT_LIST_DIR}/Shaders/${shader}.${stage}.hlsl")
@@ -128,11 +130,23 @@ if (DXC)
             add_custom_command(OUTPUT "${output}"
                 COMMAND "${CMAKE_COMMAND}" -E make_directory "${OUTPUT_DIR}/Editor/EditorShaders"
                 COMMAND "${DXC}" -spirv -T "${profile}" -E main "${source}" -Fo "${output}"
-                DEPENDS "${source}" "${CMAKE_SOURCE_DIR}/Shaders/Aether/ParticleData.hlsl"
+                DEPENDS "${source}" ${EDITOR_SHADER_INCLUDES}
+                    "${CMAKE_SOURCE_DIR}/Shaders/Aether/ParticleData.hlsl"
                 VERBATIM)
             list(APPEND EDITOR_SHADER_OUTPUTS "${output}")
         endforeach()
     endforeach()
+    set(vegetationCompute "${OUTPUT_DIR}/Editor/EditorShaders/VegetationConstraints.cs.spirv")
+    add_custom_command(OUTPUT "${vegetationCompute}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${OUTPUT_DIR}/Editor/EditorShaders"
+        COMMAND "${DXC}" -spirv -T cs_6_0 -E main
+            "${CMAKE_CURRENT_LIST_DIR}/Shaders/VegetationConstraints.cs.hlsl"
+            -Fo "${vegetationCompute}"
+        DEPENDS ${EDITOR_SHADER_INCLUDES}
+            "${CMAKE_SOURCE_DIR}/Shaders/Aether/ParticleData.hlsl"
+            "${CMAKE_SOURCE_DIR}/Shaders/Aether/Math.hlsl"
+        VERBATIM)
+    list(APPEND EDITOR_SHADER_OUTPUTS "${vegetationCompute}")
     add_custom_target(EditorShaders DEPENDS ${EDITOR_SHADER_OUTPUTS})
     add_dependencies(Editor EditorShaders)
 endif()
@@ -143,4 +157,51 @@ if (BUILD_TESTING)
         "${CMAKE_CURRENT_LIST_DIR}/Source/VFX/Rendering/LeafSettings.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/Tests/BalloonSettingsTest.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/Source/VFX/Rendering/BalloonSettings.cpp")
+endif()
+
+if(BUILD_TESTING)
+    file(GLOB VEGETATION_SOURCES CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_LIST_DIR}/Source/VFX/Vegetation/*.cpp")
+    add_executable(Editor.VFXTests
+        "${CMAKE_SOURCE_DIR}/Elixir/Tests/Entrypoint.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Tests/VegetationTest.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Tests/VegetationGpuTest.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Source/VFX/VFXDocument.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Source/VFX/Rendering/LeafSettings.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Source/VFX/Rendering/BalloonSettings.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Source/VFX/Rendering/LeafRenderer.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Source/VFX/Rendering/BalloonRenderer.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/Source/VFX/Rendering/VegetationRenderer.cpp"
+        ${VEGETATION_SOURCES})
+    set_target_properties(Editor.VFXTests PROPERTIES
+        CXX_STANDARD 20 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO
+        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
+        RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}/Editor.VFXTests")
+    target_compile_definitions(Editor.VFXTests PRIVATE
+        ELIXIR_EDITOR_PROJECT_ROOT="${CMAKE_SOURCE_DIR}"
+        $<$<BOOL:${ELIXIR_PROFILE}>:EE_PROFILE>
+        $<$<CONFIG:Debug>:EE_DEBUG>
+        $<$<BOOL:${WIN32}>:EE_PLATFORM_WINDOWS>
+        $<$<BOOL:${APPLE}>:EE_PLATFORM_MACOS>)
+    target_include_directories(Editor.VFXTests PRIVATE
+        "${CMAKE_SOURCE_DIR}/Elixir/Source"
+        "${CMAKE_SOURCE_DIR}/Elixir/Tests"
+        "${CMAKE_CURRENT_LIST_DIR}/Source")
+    link_target_to_engine(Editor.VFXTests)
+    target_link_libraries(Editor.VFXTests PRIVATE GTest::gtest_main)
+    if(TARGET EditorShaders)
+        add_dependencies(Editor.VFXTests EditorShaders)
+        add_custom_command(TARGET Editor.VFXTests POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E copy_directory
+                "${OUTPUT_DIR}/Editor/EditorShaders"
+                "$<TARGET_FILE_DIR:Editor.VFXTests>/EditorShaders"
+            VERBATIM)
+    endif()
+    gtest_discover_tests(Editor.VFXTests
+        TEST_FILTER "-EditorVegetationGpuTest.*"
+        WORKING_DIRECTORY "$<TARGET_FILE_DIR:Editor.VFXTests>")
+    gtest_discover_tests(Editor.VFXTests
+        TEST_FILTER "EditorVegetationGpuTest.*"
+        WORKING_DIRECTORY "$<TARGET_FILE_DIR:Editor.VFXTests>"
+        PROPERTIES LABELS "gpu")
 endif()

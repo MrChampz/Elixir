@@ -3,7 +3,7 @@
 #include <Engine/Graphics/CommandBuffer.h>
 #include <algorithm>
 #include <utility>
-#include <Engine/Aether/Rendering/StrandRenderConfig.h>
+#include "../Vegetation/VegetationEffect.h"
 
 namespace EditorVFX
 {
@@ -124,11 +124,11 @@ namespace EditorVFX
         command->SetScissors({{.Extent = {extent.Width, extent.Height}}});
         for (const auto& item : frame.GetItems())
         {
-            if (item.RenderMode != Aether::Core::EParticleRenderMode::Strand ||
+            if (item.RenderMode != Aether::Core::EParticleRenderMode::None ||
                 item.EmitterIndex >= m_Settings.size())
                 continue;
             const auto& settings = m_Settings[item.EmitterIndex];
-            const auto* config = dynamic_cast<const Aether::Rendering::SStrandRenderConfig*>(
+            const auto* config = dynamic_cast<const VegetationRenderConfig*>(
                 item.RenderConfig.get()
             );
             if (!settings || !settings->Enabled || !settings->IsValid() || !config ||
@@ -146,8 +146,8 @@ namespace EditorVFX
             if (resource == frame.GetResources().end() || !resource->ParticleStateBuffer ||
                 !resource->ParticleStateBuffer->IsValid())
                 continue;
-            const bool hasGrowth = item.Constraint && item.Constraint->HasGrowth;
-            const uint32_t branches = hasGrowth ? item.Constraint->Growth.BranchCount : 0;
+            const bool hasGrowth = config->Constraint.HasGrowth;
+            const uint32_t branches = hasGrowth ? config->Constraint.Growth.BranchCount : 0;
             LeafPushConstants constants{
                 item.WorldTransform,
                 item.Allocation.Particles.Offset + item.LocalParticleOffset,

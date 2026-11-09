@@ -1,131 +1,98 @@
-# Growing particle chains
+# Application-owned vegetation on Aether
 
-Strands use the same persistent CoreV1 particles as sprites and ribbons. A
-`DistanceConstraint` connects particles with matching emitter and `GroupId`, consecutive
-`LinkOrder` values separated by `orderStep`, and a maximum of `maxPoints` particles per
-chain. There is no separate strand-point allocation or strand simulation target.
+Aether owns particle storage, scheduling, integration, generic distance constraints, and
+immutable render frames. It has no growth states, branch counts, plant maturity, climbing
+rules, or vegetation playback controls in its API or built-in shaders.
 
-Open the Editor's **Strands** tab to select Ivy, Climbing Ivy, Fern, Willow, Power Lines,
-or Balloons. The original four samples remain available. Drag to orbit, use the wheel to
-zoom, and use WASD to move the instance. Power Lines stays fixed with its reference poles.
-**Pause/resume growth** stops development clocks while particle physics continues.
+The Editor owns those policies in `Editor/Source/VFX/Vegetation`, their compute shader in
+`Editor/Shaders/VegetationConstraints.cs.hlsl`, and tube/leaf/balloon rendering in its own
+shader package. `EStrandGrowthState` is an Editor type. The six vegetation examples remain
+available in the Strands tab and in VFX documents.
 
-The same JSON assets open in the VFX editor. Numeric and nested settings use its existing
-property inspector, undo/redo, save, compile, and replay paths. The module palette includes
-`StrandGrowth`, `DistanceConstraint`, and `SetGroupIdFromSpawnOrder`.
+## Generic Engine extension
 
-## Development and topology
+Any emitter can set an immutable `Simulation::ParticleProcessor` through
+`Emitter::SetParticleProcessor()`. The extension is independent of Sprite, Mesh, Ribbon,
+Strand, or None rendering. Compilation asks the application whether the emitter satisfies
+its processing contract. A compiled snapshot retains the description even if authoring
+later assigns a different processor.
 
-Add one `StrandGrowth` update module and exactly one `DistanceConstraint`. The order of
-these two modules does not matter. Growth is compiled into the distance constraint, after
-ordinary particle operations and integration. It does not emit a second force program.
+Each Simulator creates a separate `ParticleProcessorRuntime`. After particle integration
+and built-in constraints, it calls `Record()` with the emitter's allocation, particle
+layout, simulation step, world transform, and recording command buffer. The application
+can record compute or transfer work and must stay within that allocation. It must not end
+or submit the command buffer. Aether supplies barriers before and after application work
+and publishes the final particles for rendering.
 
-```json
-{
-  "type": "StrandGrowth",
-  "speed": 0.18,
-  "maxLength": 1.65,
-  "branchCount": 3,
-  "branchInterval": 8,
-  "branchLengthScale": 0.45,
-  "branchVariation": 0.4,
-  "branchDelay": 0.6,
-  "seed": 123,
-  "state": "Growing"
-}
-```
+The runtime owns its shaders, pipelines, descriptors, and uploads. It must retain resources
+until their graphics frame slot is safe to reuse and must not update descriptors already
+used in recorded commands. Simulator caches runtimes per description and retires unused
+runtimes after the graphics frame slots are safe. Resource creation failure is logged and
+stops the affected application stage safely.
 
-Speed and length use simulation-space units. Zero speed starts fully developed. Zero
-`maxLength` uses all `maxPoints - 1` segments. States are `Growing`, `Mature`, and `Paused`.
-The runtime pause switch preserves accumulated development time. It does not change particle
-age, lifetime, or velocity. A seeded branch starts after its parent reaches its attachment
-point and its additional delay expires. `branchVariation` jitters attachment locations.
+`EParticleRenderMode::None` keeps simulation and immutable frame publication active without
+submitting built-in geometry. Applications can render those particles using the existing
+`Manager::OnRenderFrame()` hook and their own `SEmitterRenderConfig` subclass. This is the
+path used by Editor vegetation; no Engine renderer interprets vegetation metadata.
 
-Reserve particles for every main chain and branch before spawning:
+The built-in CoreV1 representation remains 96 bytes. The two unused words in `Transform.zw`
+are preserved by ordinary particle updates and reset on spawn. Their interpretation belongs
+to the application. Built-in simulation and renderers do not assign them growth semantics.
+
+## Editor authoring and playback
+
+The editable JSON retains `StrandGrowth`, optional endpoint/surface settings on the distance
+module, tube taper, and optional leaf/balloon renderers. `ParseVegetationEffect()` extracts
+these application fields, validates them, and delegates only generic modules to the Engine
+parser. It then attaches the sample processor and its immutable rendering configuration.
+The Engine parser does not register or recognize `StrandGrowth`.
+
+Ordinary Aether effects pass through unchanged and have no application processor. Effects
+using the Editor vegetation schema must be loaded through the Editor parser, rather than
+through `Aether::Effect::ParseEffect()` directly.
+
+A sample contains one growth module and one distance module. Growth can be Growing, Mature,
+or Paused. Zero speed starts fully developed. The runtime pause button stops the Editor's
+development clock while ordinary particle physics continues. Branch location and delay are
+seeded; a branch starts after its parent reaches the selected attachment point.
+
+Budgets use interleaved lanes:
 
 - `orderStep = mainChainCount * (1 + branchCount)`.
 - `maxParticles = maxPoints * orderStep`.
-- Set `strand.maxPoints` and `strand.orderStep` to match the distance constraint.
+- Tube and simulation topology must match.
 - Spawn the full capacity in one initial burst, with `spawnRate = 0`, burst interval zero,
   and `particleState.killOnLifetimeExpired = false`.
 - Use `SetGroupIdFromSpawnOrder` with `groupCount = orderStep` and `firstGroupId = 0`.
 
-Lanes are interleaved by point index. Each main lane is followed by its branch lanes.
-Branches use existing particle slots and anchor to parent particles. One shader invocation
-owns a main chain and all its branches; branches read their parent's completed positions.
-The compiler rejects incomplete budgets, repeated growth modules, invalid branch topology,
-expiring particles, and unsupported endpoint/growth combinations.
+The Editor solver owns each main chain and its branches in one invocation, so branch
+anchors read completed parent positions. It supports simulation/world endpoints and static
+analytic planes, spheres, and rounded boxes. These are application guidance surfaces,
+not Engine mesh collision. Fixed endpoints require mature or zero-speed growth. An
+unreachable endpoint cannot satisfy every segment distance simultaneously.
 
-Development reserves `Transform.zw` in the existing CoreV1 particle ABI. On a root these
-words hold accumulated development time and the developed segment count. On other particles
-they hold segment visibility and distance behind the development front. Ordinary updates
-preserve these words; spawning clears them. Tube and Editor attachment shaders consume
-this metadata without changing `Alive`, `LinkOrder`, or particle age.
-
-## Endpoints and surfaces
-
-Place `endAttachment` inside the `DistanceConstraint` module:
-
-```json
-{
-  "type": "DistanceConstraint",
-  "maxPoints": 40,
-  "orderStep": 1,
-  "segmentLength": 0.03,
-  "stiffness": 1,
-  "pinFirstParticle": true,
-  "endAttachment": {
-    "enabled": true,
-    "position": [0, 0.69, -0.16],
-    "space": "World"
-  }
-}
-```
-
-`Simulation` follows the emitter's simulation space; `World` remains fixed as a local
-instance moves. Only the complete main chain's last particle is pinned. Branch tips remain
-free. Fixed endpoints require mature or zero-speed growth. Choose enough segment length to
-span both endpoints; unreachable endpoints cannot satisfy every distance simultaneously.
-
-`surfaceAttachment`, also inside `DistanceConstraint`, accepts up to eight static analytic
-world surfaces. Shapes are `Plane` (`center`, `normal`), `Sphere` (`center`, `radius`), and
-rounded axis-aligned `Box` (`center`, `halfExtents`, `rounding`). Climbing Ivy shows all three.
-`searchRadius` and `offset` use world units. `climbDirection` is projected onto the surface;
-`climbStrength` applies acceleration along that projection. A positive `breakStretchRatio`
-greater than one suppresses attachment while a segment exceeds that ratio. Nearby particles
-can attach again after the stretch decreases. This is analytic guidance, not mesh collision.
-Singular or nonfinite instance transforms stop the affected constraint safely.
-
-## Rendering and ownership
-
-The `strand` object contains only tube geometry: topology, width scale, root/tip radius
-multipliers, width exponent, branch width multiplier, radial segments, and subdivisions.
-Taper is measured against the developed tip. Defaults keep existing tubes at constant width.
-
-`leafRenderer` and `balloonRenderer` are Editor-owned settings, separate from simulation.
-Leaves use an Ivy or Lanceolate silhouette and unfold behind the growth front. Balloons use
-the moving tip of each main chain. Both use the existing particle buffer and the immutable
-render item's transform, topology, and optional constraint snapshot. They render after
-material geometry into the same preview color and depth attachments, before postprocessing.
-Editor shaders are packaged only with the Editor.
-
-Constraint uniforms use one persistent descriptor. Ordered transfer copies and barriers
-supply each dispatch's values. Uploads remain alive until their graphics frame slot is safe
-to reuse. This also supports multiple constraint modules and explicit preview replay steps.
+Open the Strands tab to select Ivy, Climbing Ivy, Fern, Willow, Power Lines, or Balloons.
+Drag to orbit, use the wheel to zoom, and use WASD to move the instance. Power Lines stays
+fixed with its reference poles. The original four generic strand examples remain available.
+Leaves and balloons consume the immutable application configuration and particle buffer;
+all custom geometry renders into the preview's existing color and depth targets before
+postprocessing.
 
 ## Validation
 
-The unit tests cover parsing, validation, compiled particle budgets, immutable settings,
-world transforms, and all six migrated assets. GPU tests cover interleaved chain solving,
-branch anchors, independent development pause, fixed world endpoints, surface projection,
-legacy multiple-constraint behavior, and development surviving normal particle updates.
-The Editor's leaf and balloon setting tests cover invalid input and emitter indexing.
-Windows-specific sources are not introduced. New out-of-line Engine APIs are exported through
-`ELIXIR_API`; native Windows compilation and linking still require Windows CI.
+Engine tests verify processor compatibility and immutable snapshots for every emitter render
+mode. A Vulkan test verifies actual particle writes for all five modes and separate runtime
+resources when a description is shared between Simulators. Existing distance-constraint and
+strand-rendering tests continue to exercise only generic Engine behavior.
 
-Validation on macOS ARM64: Engine and Editor compiled and linked; all 950 tests without
-GPU dependencies passed. Nine targeted Vulkan tests passed, including all six new assets,
-legacy strands, branch development, pause, and plane/sphere/rounded-box attachments. Ivy,
-Climbing Ivy, Power Lines, and Balloons were also inspected in the Editor. Run Vulkan tests
-from `Debug/Build/Debug/macOS/arm64/Elixir.UnitTests` with `VULKAN_SDK` set; the runtime
-folder contains both compiled shaders and the HLSL templates needed by material compilation.
+`Editor.VFXTests` covers sample parsing, budgets, settings, and the application/Engine
+boundary. Its GPU test simulates and renders all six examples, verifies fixed endpoints,
+and checks that pausing preserves development while the simulation continues. GPU tests
+are labeled `gpu`; the Editor shader package is a build dependency of that test target.
+New Engine constructors and destructors have out-of-line `ELIXIR_API` definitions for
+Windows DLL consumers. Native Windows compilation and linking require Windows CI.
+
+Validated on macOS ARM64 after this separation: Engine, Editor, Dissolve, and their affected
+test targets compiled and linked. All 952 tests without GPU dependencies passed. Eight
+Engine Vulkan tests passed, including the generic processor test across all render modes;
+the Editor GPU integration test passed for all six samples and their playback controls.
