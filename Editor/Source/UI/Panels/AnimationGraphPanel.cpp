@@ -5,7 +5,7 @@
 #include <Engine/Animation/AnimationEvaluation.h>
 #include <Engine/Font/FontManager.h>
 
-#include <charconv>
+#include <locale>
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -43,9 +43,17 @@ namespace
      */
     bool ParseFloat(const std::string& text, float& value)
     {
-        const auto result = std::from_chars(text.data(), text.data() + text.size(), value);
-        return result.ec == std::errc{} && result.ptr == text.data() + text.size() &&
-               std::isfinite(value);
+        if (text.empty() || text.front() == '+' ||
+            text.find_first_of("xX") != std::string::npos)
+            return false;
+        std::istringstream input(text);
+        input.imbue(std::locale::classic());
+        float parsed;
+        input >> std::noskipws >> parsed;
+        if (input.fail() || !input.eof() || !std::isfinite(parsed))
+            return false;
+        value = parsed;
+        return true;
     }
 
     /**
