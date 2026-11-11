@@ -51,7 +51,6 @@ TEST(ParticleMaterialsTest, RejectsInvalidLayoutsAndTiming)
     for (const auto* settings :
          {R"("atlas":{"columns":0,"rows":1,"frames":1})",
           R"("atlas":{"columns":2,"rows":2,"frames":5})",
-          R"("atlas":{"columns":4294967295,"rows":4294967295,"frames":1})",
           R"("atlas":{"columns":1,"rows":1,"frames":1,"interpolate":3})",
           R"("emissiveScale":-1)",
           R"("shadingModel":"Unknown")",

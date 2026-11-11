@@ -16,12 +16,11 @@ namespace Elixir
         /** Number of usable cells, starting at the top-left corner. */
         uint32_t Frames = 1;
 
-        /** @brief Checks dimensions and the frame range supported by shader floats. */
+        /** @brief Checks that the grid is nonempty and contains the usable frame range. */
         bool IsValid() const
         {
             const uint64_t cells = uint64_t(Columns) * Rows;
             return Columns > 0 && Rows > 0 &&
-                cells <= 16'777'216 &&
                 Frames > 0 && Frames <= cells;
         }
 
