@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <Engine/Materials/Compilation/Compiler.h>
+#include <Engine/Materials/Compilation/MaterialShaderSourceBuilder.h>
 #include <Engine/Materials/MaterialInstance.h>
 #include <Engine/Materials/Rendering/MaterialRenderProxy.h>
 
@@ -82,4 +83,76 @@ TEST(MaterialRenderProxyTest, CapturesTransmissionWithoutChangingOpaqueCoverage)
     ASSERT_TRUE(material->SetShadingModel(EMaterialShadingModel::Lit));
     EXPECT_EQ(proxy->GetShadingModel(), EMaterialShadingModel::Transmission);
     EXPECT_EQ(MaterialRenderProxy::Create(compiled, instance), nullptr);
+}
+
+
+TEST(MaterialRenderProxyTest, RejectsMissingStorageSlotsBeforeDereferencingThem)
+{
+    for (const auto kind : {EMaterialParameterKind::Value, EMaterialParameterKind::Texture,
+        EMaterialParameterKind::TextureAtlas})
+    {
+        const auto material = CreateRef<Material>("Missing slot");
+        const auto value = kind == EMaterialParameterKind::Value
+            ? SMaterialParameter::MakeScalar(1)
+            : kind == EMaterialParameterKind::Texture
+                ? SMaterialParameter::MakeTexture(nullptr)
+                : SMaterialParameter::MakeTextureAtlas(nullptr);
+        ASSERT_TRUE(material->DefineParameter(
+            "Parameter",
+            {.Kind = kind, .ValueType = EMaterialValueType::Float, .DefaultValue = value}
+        ));
+        const auto compiled = Compiler::Build(*material).Material;
+        ASSERT_TRUE(compiled);
+        MaterialInstance instance(material);
+        const auto original = compiled->Parameters.front();
+        for (const bool removeTexture : {true, false})
+        {
+            auto& parameter = compiled->Parameters.front();
+            parameter = original;
+            auto& slot = removeTexture ? parameter.TextureSlot : parameter.ValueSlot;
+            if (!slot) continue;
+            slot.reset();
+            EXPECT_FALSE(MaterialRenderProxy::Create(compiled, instance));
+            const auto source = MaterialShaderSourceBuilder::Build(
+                "",
+                *material,
+                *compiled,
+                EShaderStage::Pixel
+            );
+            EXPECT_FALSE(source);
+            EXPECT_NE(source.Diagnostics.find("missing a storage slot"), std::string::npos);
+        }
+    }
+}
+
+TEST(MaterialRenderProxyTest, RejectsUnknownCompiledKindsEvenWhenBothSlotsExist)
+{
+    const auto material = CreateRef<Material>("Unknown compiled kind");
+    ASSERT_TRUE(material->DefineParameter(
+        "Parameter",
+        {
+            .Kind = EMaterialParameterKind::Value,
+            .ValueType = EMaterialValueType::Float,
+            .DefaultValue = SMaterialParameter::MakeScalar(1)
+        }
+    ));
+    const auto compiled = Compiler::Build(*material).Material;
+    ASSERT_TRUE(compiled);
+    auto& parameter = compiled->Parameters.front();
+    parameter.Kind = static_cast<EMaterialParameterKind>(255);
+    parameter.TextureSlot = 0;
+    parameter.ValueSlot = 0;
+    MaterialInstance instance(material);
+    EXPECT_FALSE(MaterialRenderProxy::Create(compiled, instance));
+    const auto source = MaterialShaderSourceBuilder::Build(
+        "",
+        *material,
+        *compiled,
+        EShaderStage::Pixel
+    );
+    EXPECT_FALSE(source);
+    EXPECT_NE(
+        source.Diagnostics.find("Unsupported material parameter kind"),
+        std::string::npos
+    );
 }

@@ -88,8 +88,8 @@ namespace Elixir::Aether
         emitter.SpawnRatePerSecond = m_SpawnRate;
         emitter.TriggerDelaySeconds = m_TriggerDelaySeconds;
         emitter.BurstCount = m_BurstCount;
-        emitter.BurstIntervalSeconds = m_BurstIntervalSeconds;
         emitter.BurstDelaySeconds = m_BurstDelaySeconds;
+        emitter.BurstIntervalSeconds = m_BurstIntervalSeconds;
 
         const uint32_t spawnRateParamIndex = FindScopedParameterIndex(
             params,

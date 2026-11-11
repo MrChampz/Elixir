@@ -1,7 +1,10 @@
+// __SHADING_MODEL__
+
 // Shader variant for EMaterialUsage::Particle. The generated graph body writes
 // Surface fields using planar UVs, time, material values and textures.
 
 #include "../Material/NormalSampling.hlsl"
+#include "../Material/ParticleLighting.hlsl"
 #include "../Material/TextureAtlas.hlsl"
 #include "../Material/SceneSampling.hlsl"
 #include "../Material/NormalTransforms.hlsl"
@@ -14,6 +17,8 @@ cbuffer cbFrame : register(b0)
     float4x4    ViewProj;
     float3      CameraPos;
     float       Time;
+    float4      LightDirection;
+    float4      LightColor;
 };
 
 [[vk::binding(3, 0)]]
@@ -51,18 +56,15 @@ MaterialPushConstants pc;
 
 struct PSInput
 {
-    float4 ClipPos  : SV_POSITION;
-    float3 WorldPos : POSITION0;
-    float3 Normal   : NORMAL0;
-    float2 TexCoord : TEXCOORD0;
-    float2 TexCoord1 : TEXCOORD1;
-    float4 Color : COLOR;
+    float4 ClipPos              : SV_POSITION;
+    float3 WorldPos             : POSITION0;
+    float3 Normal               : NORMAL0;
+    float2 TexCoord             : TEXCOORD0;
+    float2 TexCoord1            : TEXCOORD1;
+    float4 Color                : COLOR;
     nointerpolation float Valid : TEXCOORD2;
-    float2 ParticleTime : TEXCOORD3;
+    float2 ParticleTime         : TEXCOORD3;
 };
-
-static const float3 LIGHT_DIRECTION = float3(-0.45, 0.8, 0.55);
-static const float3 RIM_COLOR = float3(0.35, 0.42, 0.52);
 
 struct Surface
 {
@@ -83,8 +85,11 @@ SamplerState pointWrap;
 [[vk::binding(10, 0)]]
 SamplerState pointClamp;
 
-[[vk::binding(11, 0)]] Texture2D sceneColorTexture;
-[[vk::binding(12, 0)]] SamplerState sceneColorSampler;
+[[vk::binding(11, 0)]]
+Texture2D sceneColorTexture;
+
+[[vk::binding(12, 0)]]
+SamplerState sceneColorSampler;
 
 float4 main(PSInput input) : SV_Target0
 {
@@ -122,12 +127,16 @@ float4 main(PSInput input) : SV_Target0
         clip(surface.Opacity - mat.AlphaCutoff);
     }
 
-    const float3 lightDirection = normalize(LIGHT_DIRECTION);
+    const float3 color = EvaluateParticleLighting(
+        surface.BaseColor,
+        surface.Emissive,
+        N,
+        V,
+        surface.Roughness,
+        surface.Metallic,
+        LightDirection.xyz,
+        LightColor
+    );
 
-    const float diffuse = max(dot(N, lightDirection), 0.0f);
-    const float rim = pow(1.0f - max(dot(N, V), 0.0f), 2.8f);
-    const float3 litColor = (surface.BaseColor * (0.24f + diffuse * 0.92f)) +
-        surface.Emissive + (RIM_COLOR * rim * 0.35f);
-
-    return float4(litColor, surface.Opacity);
+    return float4(color, surface.Opacity);
 }

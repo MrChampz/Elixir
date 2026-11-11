@@ -30,11 +30,11 @@ struct SGPUEmitter
     uint  RenderMode;
     float SpawnRatePerSecond;
     float GravityScale;
+    float BurstDelaySeconds;
     float BurstIntervalSeconds;
     uint  BurstCount;
     uint  IsTriggerDriven;
     uint  KillOnLifetimeExpired;
-    float BurstDelaySeconds;
 };
 
 struct SGPUSystemInstance

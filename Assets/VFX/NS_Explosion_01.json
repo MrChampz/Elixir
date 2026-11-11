@@ -175,7 +175,8 @@
           "rows": 10,
           "frames": 100,
           "interpolate": true
-        }
+        },
+        "shadingModel": "Unlit"
       }
     }
   ]

@@ -65,6 +65,21 @@ namespace Elixir::Materials
         Ref<Texture> GetTexture(const std::string& name) const;
 
         /**
+         * @brief Overrides a texture atlas resource without changing the material graph.
+         * @param name Atlas parameter name.
+         * @param atlas Resource to retain, or null to leave the parameter unassigned.
+         * @return Whether the parent defines a compatible parameter.
+         */
+        bool SetTextureAtlas(const std::string& name, const Ref<TextureAtlas>& atlas);
+
+        /**
+         * @brief Returns the resolved atlas resource.
+         * @param name Atlas parameter name.
+         * @return Resolved resource, or null when unavailable.
+         */
+        Ref<TextureAtlas> GetTextureAtlas(const std::string& name) const;
+
+        /**
          * @brief Returns the effective value of a parameter.
          *
          * Overrides take precedence over the parent material's default.

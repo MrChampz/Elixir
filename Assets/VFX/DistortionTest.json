@@ -170,7 +170,8 @@
           "rows": 8,
           "frames": 64,
           "interpolate": true
-        }
+        },
+        "shadingModel": "Unlit"
       }
     },
     {
@@ -280,7 +281,8 @@
       ],
       "material": {
         "refractionTexture": "Assets/Textures/Disort_N.PNG",
-        "refractionStrength": 0.03
+        "refractionStrength": 0.03,
+        "shadingModel": "Unlit"
       }
     }
   ]

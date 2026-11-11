@@ -16,9 +16,12 @@
 #include <Engine/Aether/Manager.h>
 #include <Engine/Aether/Effect/MaterialFactory.h>
 #include <Engine/Graphics/TextureLoader.h>
-#include <Engine/Materials/Nodes/FlipbookSample.h>
+#include <Engine/Materials/Nodes/TextureAtlasSample.h>
 #include <Engine/Materials/Nodes/ParticleTime.h>
 #include <Engine/Materials/Nodes/SceneColor.h>
+#include <Engine/Materials/MaterialInstance.h>
+#include <Engine/Materials/Rendering/MaterialRenderProxy.h>
+#include <Engine/Materials/Rendering/FrameTable.h>
 using namespace Elixir::Materials;
 using namespace Elixir::Materials::Nodes;
 using namespace Elixir::Materials::Compilation;
@@ -109,6 +112,9 @@ TEST(VulkanMaterialGraphTest, CompilesFunctionsStaticChoicesAndVertexTextureSamp
                 },
                 SConfiguration{
                     EMaterialUsage::Particle, 1u, false, EMaterialShadingModel::Lit
+                },
+                SConfiguration{
+                    EMaterialUsage::Particle, 0u, true, EMaterialShadingModel::Unlit
                 }
             };
             for (const auto& configuration : configurations)
@@ -240,6 +246,11 @@ TEST(VulkanMaterialGraphTest, CompilesMigratedParticleEffectsForEveryGeometry)
                     description
                 );
                 ASSERT_TRUE(material);
+                EXPECT_EQ(material->GetShadingModel(), description.ShadingModel);
+                EXPECT_EQ(
+                    material->GetGraph().HasChannel(EMaterialChannel::Normal),
+                    !description.NormalTexturePath.empty()
+                );
                 const auto result = Compiler::Compile(&loader, *material);
                 ASSERT_TRUE(result) << name << ": " << emitter->GetName() << " "
                     << result.Diagnostics;
@@ -265,13 +276,13 @@ TEST(VulkanMaterialGraphTest, AtlasAndSceneSamplingAlsoCompileForSurfaceMaterial
         ShaderLoader loader(context);
         Material material("Generic atlas and scene", EMaterialUsage::Surface);
         material.DefineParameter("Atlas", {
-            .Kind = EMaterialParameterKind::Texture,
-            .DefaultValue = SMaterialParameter::MakeTexture(nullptr)
+            .Kind = EMaterialParameterKind::TextureAtlas,
+            .DefaultValue = SMaterialParameter::MakeTextureAtlas(nullptr)
         });
         MaterialGraph graph;
-        const auto atlas = graph.AddNode<FlipbookSample>(
+        const auto atlas = graph.AddNode<TextureAtlasSample>(
             "Atlas",
-            STextureAtlas{2, 2, 4, true}
+            true
         );
         const auto scene = graph.AddNode<SceneColor>();
         graph.SetChannel(EMaterialChannel::BaseColor, atlas);
@@ -281,4 +292,95 @@ TEST(VulkanMaterialGraphTest, AtlasAndSceneSamplingAlsoCompileForSurfaceMaterial
         ASSERT_TRUE(result) << result.Diagnostics;
         EXPECT_TRUE(result.Material->SurfaceShader->HasBinding("sceneColorTexture"));
     }));
+}
+
+
+TEST(VulkanMaterialGraphTest, AtlasResourcesRetainTextureAndOverrideLayoutWithoutRecompiling)
+{
+    auto* context = VulkanTestContext::Get().GetGraphicsContext();
+    ASSERT_TRUE(context->RunRenderTaskAndWait(
+        [&]
+        {
+            ShaderWorkspace workspace;
+            ShaderLoader loader(context);
+            std::array<uint8_t, 64> pixels;
+            pixels.fill(255);
+            STexture2DCreateInfo info;
+            info.Format = EImageFormat::R8G8B8A8_UNORM;
+            info.Width = info.Height = 4;
+            info.InitialData = pixels.data();
+            auto texture = Texture2D::Create(context, info);
+            auto first = TextureAtlas::Create(texture, {2, 2, 4});
+            auto second = TextureAtlas::Create(texture, {4, 1, 3});
+            ASSERT_TRUE(first);
+            ASSERT_TRUE(second);
+            EXPECT_NE(first->GetUUID(), second->GetUUID());
+            EXPECT_NE(first->GetUUID(), texture->GetUUID());
+            EXPECT_TRUE(TextureAtlas::Create(texture, {3, 2, 4}));
+            EXPECT_FALSE(TextureAtlas::Create(texture, {5, 2, 4}));
+            EXPECT_FALSE(TextureAtlas::Create(texture, {2, 2, 5}));
+            EXPECT_FALSE(TextureAtlas::Create(nullptr, {2, 2, 4}));
+            EXPECT_FALSE(TextureAtlas::Create(texture, {0, 0, 0}));
+            std::weak_ptr<Texture> retained = texture;
+            texture.reset();
+            EXPECT_FALSE(retained.expired());
+            const auto material =
+                CreateRef<Material>("Atlas override", EMaterialUsage::Surface);
+            material->DefineParameter(
+                "Atlas",
+                {.Kind = EMaterialParameterKind::TextureAtlas,
+                 .DefaultValue = SMaterialParameter::MakeTextureAtlas(first)}
+            );
+            material->DefineParameter(
+                "Value",
+                {.Kind = EMaterialParameterKind::Value,
+                 .ValueType = EMaterialValueType::Float,
+                 .DefaultValue = SMaterialParameter::MakeScalar(7)}
+            );
+            MaterialGraph graph;
+            const auto age =
+                graph.AddNode<Constant>(glm::vec4{0.5f}, EMaterialValueType::Float);
+            const auto atlas = graph.AddNode<TextureAtlasSample>(
+                "Atlas",
+                true,
+                ETextureAtlasFrameMode::Normalized
+            );
+            graph.Connect(age, atlas, 1);
+            graph.SetChannel(EMaterialChannel::BaseColor, atlas);
+            material->SetGraph(std::move(graph));
+            const auto compiled = Compiler::Compile(&loader, *material);
+            ASSERT_TRUE(compiled) << compiled.Diagnostics;
+            const auto instance = material->CreateInstance();
+            const auto original =
+                Rendering::MaterialRenderProxy::Create(compiled.Material, *instance);
+            ASSERT_TRUE(original);
+            ASSERT_TRUE(instance->SetTextureAtlas("Atlas", second));
+            EXPECT_EQ(instance->GetTextureAtlas("Atlas"), second);
+            const auto replacement =
+                Rendering::MaterialRenderProxy::Create(compiled.Material, *instance);
+            ASSERT_TRUE(replacement);
+            EXPECT_EQ(original->GetCompiledMaterial(), replacement->GetCompiledMaterial());
+            EXPECT_EQ(original->GetValues()[0], glm::vec4(2, 2, 4, 0));
+            EXPECT_EQ(replacement->GetValues()[0], glm::vec4(4, 1, 3, 0));
+            EXPECT_EQ(replacement->GetValues()[1].x, 7);
+            EXPECT_EQ(original->GetTextures()[0], second->GetTexture());
+            Rendering::FrameTable table(
+                4,
+                0,
+                [](const Ref<Texture>&)
+                {
+                    return std::optional<uint32_t>{9};
+                }
+            );
+            ASSERT_TRUE(table.Add(*replacement));
+            EXPECT_EQ(table.GetData()[0].Values[0], glm::vec4(4, 1, 3, 0));
+            EXPECT_EQ(table.GetData()[0].TextureIndices[0], 9u);
+            ASSERT_TRUE(instance->SetTextureAtlas("Atlas", nullptr));
+            const auto empty =
+                Rendering::MaterialRenderProxy::Create(compiled.Material, *instance);
+            ASSERT_TRUE(empty);
+            EXPECT_FALSE(empty->GetTextures()[0]);
+            EXPECT_EQ(empty->GetValues()[0], glm::vec4(1, 1, 1, 0));
+        }
+    ));
 }

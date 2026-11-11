@@ -89,6 +89,13 @@ namespace Elixir::Materials
         virtual bool HasTextureParameter(std::string_view name) const = 0;
 
         /**
+         * @brief Checks whether a texture atlas resource parameter exists.
+         * @param name Parameter name.
+         * @return Whether the parameter accepts texture atlas resources.
+         */
+        virtual bool HasTextureAtlasParameter(std::string_view name) const { return false; }
+        
+        /**
          * @brief Checks an input declared by the enclosing material function.
          * @param name Function input name.
          * @param type Expected numeric type.

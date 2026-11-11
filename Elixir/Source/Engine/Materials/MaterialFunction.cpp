@@ -33,13 +33,16 @@ namespace Elixir::Materials
                 return m_Parent.HasValueParameter(name, type);
             }
 
-            /**
-             * @brief Check whether the caller declares a texture parameter.
-             * @param name Texture parameter name.
-             */
+            /** @copydoc MaterialNodeValidationContext::HasTextureParameter */
             bool HasTextureParameter(const std::string_view name) const override
             {
                 return m_Parent.HasTextureParameter(name);
+            }
+
+            /** @copydoc MaterialNodeValidationContext::HasTextureAtlasParameter */
+            bool HasTextureAtlasParameter(const std::string_view name) const override
+            {
+                return m_Parent.HasTextureAtlasParameter(name);
             }
 
             /**

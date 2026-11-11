@@ -32,14 +32,14 @@ PushConstants pc;
 
 struct VSOutput
 {
-    float4 ClipPos : SV_POSITION;
-    float3 WorldPos : POSITION0;
-    float3 Normal : NORMAL0;
-    float2 TexCoord : TEXCOORD0;
-    float2 TexCoord1 : TEXCOORD1;
-    float4 Color : COLOR;
+    float4 ClipPos              : SV_POSITION;
+    float3 WorldPos             : POSITION0;
+    float3 Normal               : NORMAL0;
+    float2 TexCoord             : TEXCOORD0;
+    float2 TexCoord1            : TEXCOORD1;
+    float4 Color                : COLOR;
     nointerpolation float Valid : TEXCOORD2;
-    float2 ParticleTime : TEXCOORD3;
+    float2 ParticleTime         : TEXCOORD3;
 };
 
 uint NextSlot(uint slot)
@@ -150,8 +150,11 @@ VSOutput main(uint vertexId : SV_VertexID, uint instanceId : SV_InstanceID)
     output.TexCoord = texCoord;
     output.TexCoord1 = output.TexCoord;
     output.Color = lerp(first.Color, second.Color, u);
-    output.ParticleTime = lerp(float2(first.Age, first.Lifetime),
-        float2(second.Age, second.Lifetime), u);
+    output.ParticleTime = lerp(
+        float2(first.Age, first.Lifetime),
+        float2(second.Age, second.Lifetime),
+        u
+    );
     output.Valid = 1;
 
     return output;

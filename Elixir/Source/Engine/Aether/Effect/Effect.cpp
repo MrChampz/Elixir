@@ -464,25 +464,22 @@ namespace Elixir::Aether::Effect
                 );
 
                 desc.BaseColor = glm::vec3(color);
-                desc.Opacity = color.w;
-                desc.Emissive = glm::vec3(emissive);
                 desc.BaseColorTexturePath = ParseString(material, "texture");
-
-                desc.EmissiveTexturePath = ParseString(material, "emissiveTexture");
-                desc.ColorRampTexturePath = ParseString(material, "colorRampTexture");
                 desc.NormalTexturePath = ParseString(material, "normalTexture");
-                desc.RefractionTexturePath = ParseString(material, "refractionTexture");
+
+                desc.Emissive = glm::vec3(emissive);
+                desc.EmissiveTexturePath = ParseString(material, "emissiveTexture");
                 if (HasField(material, "emissiveScale"))
                     desc.EmissiveScale = RequireFloat(material, "emissiveScale");
-                if (HasField(material, "ambientLight"))
-                    desc.AmbientLight = RequireFloat(material, "ambientLight");
-                if (HasField(material, "normalLightDirection"))
-                    desc.NormalLightDirection = RequireFloatVec<3>(
-                        material,
-                        "normalLightDirection"
-                    );
+
+                desc.ColorRampTexturePath = ParseString(material, "colorRampTexture");
+
+                desc.RefractionTexturePath = ParseString(material, "refractionTexture");
                 if (HasField(material, "refractionStrength"))
                     desc.RefractionStrength = RequireFloat(material, "refractionStrength");
+
+                desc.Opacity = color.w;
+
                 if (HasField(material, "atlas"))
                 {
                     od::object atlas;
@@ -491,21 +488,36 @@ namespace Elixir::Aether::Effect
                         Fail("Material atlas must be an object.");
                         return std::nullopt;
                     }
+
                     desc.Atlas.Columns = RequireUInt(atlas, "columns");
                     desc.Atlas.Rows = RequireUInt(atlas, "rows");
                     desc.Atlas.Frames = RequireUInt(atlas, "frames");
+
                     if (HasField(atlas, "interpolate"))
-                        desc.Atlas.Interpolate = RequireBoolean(atlas, "interpolate");
+                        desc.InterpolateAtlas = RequireBoolean(atlas, "interpolate");
                 }
-                const float normalLength = glm::dot(
-                    desc.NormalLightDirection,
-                    desc.NormalLightDirection
-                );
-                if (!desc.Atlas.IsValid() || desc.EmissiveScale < 0 ||
-                    desc.AmbientLight < 0 || desc.AmbientLight > 1 ||
-                    !std::isfinite(normalLength) || normalLength <= 0.000001f ||
+
+                if (!desc.Atlas.IsValid() ||
+                    desc.EmissiveScale < 0 ||
                     desc.RefractionStrength < 0)
                     Fail("Invalid material texture settings.");
+
+                if (HasField(material, "shadingModel"))
+                {
+                    const auto value = RequireString(material, "shadingModel");
+                    const auto model = magic_enum::enum_cast<EMaterialShadingModel>(value);
+
+                    const bool supported = model && (*model == EMaterialShadingModel::Unlit ||
+                        *model == EMaterialShadingModel::Lit);
+
+                    if (!supported)
+                    {
+                        Fail("Particle material shading model must be 'Unlit' or 'Lit': '{}'.", value);
+                        return std::nullopt;
+                    }
+
+                    desc.ShadingModel = *model;
+                }
 
                 if (HasField(material, "blendMode"))
                 {
@@ -573,10 +585,12 @@ namespace Elixir::Aether::Effect
                     if (Failed()) return;
 
                     emitter.SetBurst(burstCount, burstInterval);
+
                     if (HasField(burst, "delay"))
                     {
                         const auto delay = RequireFloat(burst, "delay");
                         if (Failed()) return;
+
                         if (!emitter.SetBurstDelay(delay))
                         {
                             Fail("'burst.delay' must be nonnegative and finite.");

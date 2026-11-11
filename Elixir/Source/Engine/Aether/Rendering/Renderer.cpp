@@ -2,6 +2,7 @@
 #include "Renderer.h"
 
 #include <Engine/Aether/Rendering/StrandRenderConfig.h>
+#include <Engine/Mesh/MeshLighting.h>
 
 namespace Elixir::Aether::Rendering
 {
@@ -55,6 +56,16 @@ namespace Elixir::Aether::Rendering
     {
         EE_CORE_ASSERT(context, "Aether Renderer requires a graphics context.")
         EE_CORE_INFO("Initializing Aether Renderer.")
+
+        const SMeshLighting lighting;
+        m_FrameData.LightDirection = glm::vec4(
+            glm::normalize(lighting.DirectionalLightDirection),
+            0.0f
+        );
+        m_FrameData.LightColor = glm::vec4(
+            lighting.DirectionalLightColor,
+            lighting.DirectionalLightIntensity
+        );
 
         CreateCoreV1GraphicsLayout();
         CreateMeshVertexBuffer();

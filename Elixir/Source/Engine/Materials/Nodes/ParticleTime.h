@@ -16,38 +16,42 @@ namespace Elixir::Materials::Nodes
     /** @brief Reads particle timing without depending on a particular effect or emitter. */
     class ParticleTime final : public MaterialNode
     {
-      public:
+    public:
         /**
          * @brief Selects an elapsed, total, or normalized particle lifetime.
          * @param value Time value supplied by the particle renderer.
          */
-        explicit ParticleTime(EParticleTime value = EParticleTime::NormalizedAge)
-            : m_Value(value)
-        {
-        }
+        explicit ParticleTime(const EParticleTime value = EParticleTime::NormalizedAge)
+          : m_Value(value) {}
+
         /** @copydoc MaterialNode::GetTypeName */
         std::string_view GetTypeName() const override { return "Material.ParticleTime"; }
+
         /** @copydoc MaterialNode::GetSupportedStages */
         EShaderStage GetSupportedStages(const SMaterialGraphBindings* bindings) const override
         {
             return EShaderStage::Pixel;
         }
+
         /** @copydoc MaterialNode::Emit */
         SMaterialExpression Emit(const MaterialEmitContext& context) const override
         {
             const auto age = context.ParticleAge();
             const auto lifetime = context.ParticleLifetime();
+
             if (m_Value == EParticleTime::Age)
-                return {age, EMaterialValueType::Float};
+                return { age, EMaterialValueType::Float };
+
             if (m_Value == EParticleTime::Lifetime)
-                return {lifetime, EMaterialValueType::Float};
+                return { lifetime, EMaterialValueType::Float };
+
             return {
                 "saturate((" + age + ") / max((" + lifetime + "), 0.001))",
                 EMaterialValueType::Float
             };
         }
 
-      private:
+    private:
         EParticleTime m_Value;
     };
 }

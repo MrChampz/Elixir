@@ -214,6 +214,7 @@ namespace Elixir::Materials::Rendering
         {
             const bool needsBackground = RequiresSceneColor(item.Prepared) ||
                 item.Prepared.Proxy->GetShadingModel() == EMaterialShadingModel::Transmission;
+
             if (needsBackground)
             {
                 cmd->EndRendering();
@@ -239,9 +240,12 @@ namespace Elixir::Materials::Rendering
 
     bool Renderer::RequiresSceneColor(const SPreparedRenderItem& item)
     {
-        if (!item.Item || !item.Proxy) return false;
+        if (!item.Item || !item.Proxy)
+            return false;
+
         const auto compiled = item.Proxy->GetCompiledMaterial();
         if (!compiled) return false;
+
         const auto& shader = compiled->GetShader(GetShaderVariant(item.Item->Pass));
         return shader && shader->HasBinding("sceneColorTexture");
     }

@@ -1,5 +1,5 @@
 {
-  "name": "Fake Normal Lighting Test",
+  "name": "Normal Map Lighting Test",
   "parameters": {
     "gravityScale": 1.0
   },

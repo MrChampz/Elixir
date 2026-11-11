@@ -37,7 +37,7 @@ struct VSOutput
     float2 TexCoord1            : TEXCOORD2;
     float3 WorldPos             : POSITION0;
     float4 Color                : COLOR;
-    float2 ParticleTime : TEXCOORD3;
+    float2 ParticleTime         : TEXCOORD3;
 };
 
 float3 SafeNormalize(float3 value, float3 fallback)

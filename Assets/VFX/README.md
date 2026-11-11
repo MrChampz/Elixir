@@ -15,6 +15,8 @@ emitter GPU state or sprite-specific push constants.
 ## Embedded material properties
 
 Existing properties (`color`, `emissive`, `texture`, and `blendMode`) remain valid.
+`shadingModel` selects `Lit` or `Unlit`. Color and emission examples use `Unlit`;
+`NormalLightTest` uses `Lit` to demonstrate the renderer light and normal channel.
 `blendMode` also accepts `Additive`, which adds alpha-weighted source color and
 preserves destination alpha. Additive items do not write depth.
 
@@ -37,8 +39,10 @@ an atlas retain their existing texture sampling behavior.
 
 `colorRampTexture` replaces diffuse RGB with a horizontal ramp indexed by diffuse
 luminance, while preserving diffuse alpha and particle tint. `normalTexture`
-modulates diffuse color using `normalLightDirection` (default `[-0.4, 0.6, 0.7]`)
-and `ambientLight` (default `0.35`, valid range zero to one).
+feeds the material's tangent-space normal channel. Light direction, color, and
+intensity come from the renderer's default Surface lighting setup. Materials do
+not store scene-light or ambient-light settings. Particle shaders share Surface's
+direct-light evaluation; Surface image-based lighting remains in its existing path.
 
 `refractionTexture` supplies decoded normal-map XY offsets into the background.
 `refractionStrength` scales those offsets in normalized screen coordinates
@@ -46,9 +50,14 @@ and `ambientLight` (default `0.35`, valid range zero to one).
 Use translucent blending for this effect. The render target must support
 `TransferSrc`, as it does for transmission materials.
 
-`FlipbookSample` and `SceneColor` are generic graph nodes available to surface
-materials and all particle geometries. `FlipbookSample` accepts an explicit frame
-input, so it does not require particle timing. `ParticleTime` supplies particle
+`TextureAtlasSample` and `SceneColor` are generic graph nodes available to surface
+materials and all particle geometries. `TextureAtlasSample` accepts an explicit frame
+input, so it does not require particle timing. The node takes a `TextureAtlas`
+resource parameter. The resource retains its texture and immutable layout; the
+node selects frame interpolation and index or normalized frame coordinates.
+Material instances can override the resource, including its layout, without
+recompiling the graph. The embedded JSON atlas description remains an authoring
+adapter that creates these resources. `ParticleTime` supplies particle
 age, lifetime, or normalized age for particle pixel graphs.
 
 ## Burst timing

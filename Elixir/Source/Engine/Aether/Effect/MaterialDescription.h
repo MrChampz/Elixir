@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Engine/Materials/Material.h>
-#include <Engine/Materials/TextureAtlas.h>
+#include <Engine/Graphics/TextureAtlas.h>
 
 namespace Elixir::Aether::Effect
 {
@@ -17,36 +17,42 @@ namespace Elixir::Aether::Effect
     struct SMaterialDescription
     {
         glm::vec3 BaseColor{ 1.0f };
-        float Opacity = 1.0f;
-        glm::vec3 Emissive{ 0.0f };
         std::string BaseColorTexturePath;
 
-        /** Atlas layout used by base-color and emissive textures. */
-        Materials::STextureAtlas Atlas;
-        /** Optional emissive texture, sampled using the same atlas frame. */
+        glm::vec3 Emissive{ 0.0f };
         std::string EmissiveTexturePath;
-        /** Multiplier applied to the emissive texture's RGB values. */
         float EmissiveScale = 1;
+
+        /** Optional tangent-space normal map connected to the material normal channel. */
+        std::string NormalTexturePath;
+
         /** Optional horizontal color ramp indexed by base-texture luminance. */
         std::string ColorRampTexturePath;
-        /** Optional normal map used for authored directional color modulation. */
-        std::string NormalTexturePath;
-        /** Light direction expressed in the normal map's coordinate system. */
-        glm::vec3 NormalLightDirection{-0.4f, 0.6f, 0.7f};
-        /** Minimum normal-map lighting contribution, from zero to one. */
-        float AmbientLight = 0.35f;
+
         /** Optional normal map providing screen-space refraction offsets. */
         std::string RefractionTexturePath;
+
         /** Refraction offset multiplier in normalized screen coordinates. */
         float RefractionStrength = 0.02f;
+
+        float Opacity = 1.0f;
+
+        /** Atlas layout used by base-color and emissive textures. */
+        STextureAtlasLayout Atlas;
+
+        /** Interpolates adjacent atlas frames when sampling the material. */
+        bool InterpolateAtlas = false;
+
+        /** Selects whether the material responds to renderer lighting. */
+        Materials::EMaterialShadingModel ShadingModel = Materials::EMaterialShadingModel::Lit;
+
+        /** Controls blending and depth writes; existing effects default to translucent. */
+        Materials::EMaterialBlendMode BlendMode = Materials::EMaterialBlendMode::Translucent;
 
         /**
          * @brief Compares all authored properties for material reuse.
          * @param other Description to compare.
          */
         bool operator==(const SMaterialDescription& other) const = default;
-
-        /** Controls blending and depth writes; existing effects default to translucent. */
-        Materials::EMaterialBlendMode BlendMode = Materials::EMaterialBlendMode::Translucent;
     };
 }

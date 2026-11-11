@@ -227,9 +227,13 @@ TEST(VulkanShaderTest, InitialBurstRunsOnceAndPeriodicAndTriggeredBurstsKeepThei
     const auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
     ASSERT_TRUE(pipeline);
     // Mirror the emitter, instance and scheduler layouts with native four-byte words.
+    constexpr size_t burstDelayWord = 11;
+    constexpr size_t burstIntervalWord = 12;
+    constexpr size_t burstCountWord = 13;
+    constexpr size_t triggerDrivenWord = 14;
     std::array<uint32_t, 16> emitter{};
     emitter[1] = 64; // particle capacity
-    emitter[12] = 64; // burst count
+    emitter[burstCountWord] = 64; // burst count
     std::array<uint32_t, 15> instance{};
     instance[10] = 64;
     instance[11] = 1;
@@ -302,7 +306,7 @@ TEST(VulkanShaderTest, InitialBurstRunsOnceAndPeriodicAndTriggeredBurstsKeepThei
     EXPECT_EQ(request[1], 64u); // reset starts a new initial burst
     EXPECT_EQ(request[3], 2u);
 
-    // Reset reads the delay from the last word of the unchanged 64-byte GPU layout.
+    // Reset reads the delay at byte 44 of the 64-byte GPU emitter layout.
     const auto init = loader.LoadShader(
         "./Shaders/Aether",
         "ParticlesSchedulerInitEmitters",
@@ -316,7 +320,7 @@ TEST(VulkanShaderTest, InitialBurstRunsOnceAndPeriodicAndTriggeredBurstsKeepThei
     init->BindStorageBuffer("emitterStates", states);
     init->BindStorageBuffer("schedulerStates", schedulers);
     init->BindStorageBuffer("triggerQueueStates", queueBuffer);
-    emitter[15] = std::bit_cast<uint32_t>(0.5f);
+    emitter[burstDelayWord] = std::bit_cast<uint32_t>(0.5f);
     emitters->UpdateData(emitter.data(), sizeof(emitter));
     scheduler[2] = 1;
     schedulers->UpdateData(scheduler.data(), sizeof(scheduler));
@@ -345,8 +349,8 @@ TEST(VulkanShaderTest, InitialBurstRunsOnceAndPeriodicAndTriggeredBurstsKeepThei
     state = {};
     state[4] = 2;
     states->UpdateData(state.data(), sizeof(state));
-    emitter[11] = std::bit_cast<uint32_t>(0.5f);
-    emitter[12] = 2;
+    emitter[burstIntervalWord] = std::bit_cast<uint32_t>(0.5f);
+    emitter[burstCountWord] = 2;
     emitters->UpdateData(emitter.data(), sizeof(emitter));
     dispatch(0.25f);
     EXPECT_EQ(request[1], 0u);
@@ -359,8 +363,8 @@ TEST(VulkanShaderTest, InitialBurstRunsOnceAndPeriodicAndTriggeredBurstsKeepThei
     state = {};
     state[4] = 2;
     states->UpdateData(state.data(), sizeof(state));
-    emitter[11] = 0;
-    emitter[13] = 1;
+    emitter[burstIntervalWord] = 0;
+    emitter[triggerDrivenWord] = 1;
     emitters->UpdateData(emitter.data(), sizeof(emitter));
     dispatch(0.1f);
     EXPECT_EQ(request[1], 0u);
@@ -398,8 +402,8 @@ TEST(VulkanShaderTest, LifetimeDeathPolicyPreservesSimulationNormalizedAgeAndExp
         roots[index * 6 + 4] = {1, 1, 1, 1};
         roots[index * 6 + 5] = {std::bit_cast<float>(index), 0, 0.25f, 1};
         emittersData[index * 16 + 1] = 1;
-        // The lifetime flag remains at word 14 in the 64-byte emitter layout.
-        emittersData[index * 16 + 14] = index == 1 ? 1 : 0;
+        // The lifetime flag follows trigger state at word 15 of the 64-byte layout.
+        emittersData[index * 16 + 15] = index == 1 ? 1 : 0;
     }
     roots[2 * 6].x = 2; // explicit kill outside the box
     emittersData[2 * 16 + 4] = 0;
@@ -870,5 +874,50 @@ TEST(VulkanShaderTest, MigratedEffectsRenderAdditiveAndRefractiveMaterialsThroug
         EXPECT_EQ(result.DrawCount, system->GetEmitters().size()) << name;
         EXPECT_EQ(result.MaterialCount, system->GetEmitters().size()) << name;
         EXPECT_TRUE(manager.Remove(instance));
+    }
+}
+
+TEST(VulkanShaderTest, SurfaceAndParticleDirectLightingUsesTheSharedBRDF)
+{
+    const auto context = VulkanTestContext::Get().GetGraphicsContext();
+    ShaderLoader loader(context);
+    const auto shader = loader.LoadShader(
+        ELIXIR_TEST_SHADER_DIR,
+        "DirectLightingValidation",
+        EShaderStage::Compute
+    );
+    ASSERT_TRUE(shader);
+    std::array<glm::vec4, 4> values{};
+    const auto output = DynamicStorageBuffer::Create(context, sizeof(values), values.data());
+    shader->BindStorageBuffer("results", output);
+    const auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
+    const auto cmd = context->GetUploadCommandBuffer();
+    cmd->Begin();
+    pipeline->Bind(cmd);
+    cmd->Dispatch(1);
+    const VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
+        VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT};
+    vkCmdPipelineBarrier(
+        static_cast<VulkanCommandBuffer*>(cmd.get())->GetVulkanCommandBuffer(),
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_HOST_BIT,
+        0,
+        1,
+        &barrier,
+        0,
+        nullptr,
+        0,
+        nullptr
+    );
+    cmd->End();
+    cmd->Flush();
+    std::memcpy(values.data(), output->Map(), sizeof(values));
+    output->Unmap();
+    for (uint32_t component = 0; component < 3; ++component)
+    {
+        EXPECT_NEAR(values[0][component], 0.96f / 3.14159265359f, 0.0001f);
+        EXPECT_NEAR(values[1][component], 0.05093f, 0.0001f);
+        EXPECT_FLOAT_EQ(values[2][component], 0);
+        EXPECT_FLOAT_EQ(values[3][component], 0);
     }
 }

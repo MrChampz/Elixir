@@ -169,10 +169,13 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     float burstInterval = emitter.BurstIntervalSeconds;
 
     // Nonpositive values count down the initial delay; one marks a consumed one-shot.
-    if (!isTriggerDriven && burstCount > 0 && burstInterval == 0.0f &&
+    if (!isTriggerDriven &&
+        burstCount > 0 &&
+        burstInterval == 0.0f &&
         state.BurstAccumulator <= 0.0f)
     {
         state.BurstAccumulator += Time.x;
+
         if (state.BurstAccumulator >= 0.0f)
         {
             spawnCount = min(maxParticles, spawnCount + burstCount);

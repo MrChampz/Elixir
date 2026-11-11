@@ -70,12 +70,12 @@ struct VSInput
 
 struct VSOutput
 {
-    float4 ClipPos   : SV_POSITION;
-    float3 WorldPos  : POSITION0;
-    float3 Normal    : NORMAL0;
-    float2 TexCoord  : TEXCOORD0;
-    float2 TexCoord1 : TEXCOORD1;
-    float4 Color     : COLOR;
+    float4 ClipPos      : SV_POSITION;
+    float3 WorldPos     : POSITION0;
+    float3 Normal       : NORMAL0;
+    float2 TexCoord     : TEXCOORD0;
+    float2 TexCoord1    : TEXCOORD1;
+    float4 Color        : COLOR;
     float2 ParticleTime : TEXCOORD2;
 };
 

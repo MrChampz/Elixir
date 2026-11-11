@@ -213,7 +213,8 @@
       ],
       "material": {
         "texture": "Assets/Textures/SoftGlow.png",
-        "blendMode": "Additive"
+        "blendMode": "Additive",
+        "shadingModel": "Unlit"
       }
     },
     {
@@ -329,7 +330,8 @@
           "rows": 8,
           "frames": 64,
           "interpolate": true
-        }
+        },
+        "shadingModel": "Unlit"
       }
     }
   ]

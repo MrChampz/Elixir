@@ -18,6 +18,9 @@ namespace Elixir::Materials::Compilation
         /** Compile-time choices shared by nested function calls. */
         std::unordered_map<std::string, bool> StaticValues;
 
+        /** Runtime atlas layout expressions indexed by resource parameter name. */
+        std::unordered_map<std::string, std::string> AtlasLayouts;
+
         /** Arguments of the current function call. */
         std::unordered_map<std::string, SMaterialExpression> FunctionInputs;
     };

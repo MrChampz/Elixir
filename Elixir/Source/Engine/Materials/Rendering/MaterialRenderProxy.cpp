@@ -31,17 +31,81 @@ namespace Elixir::Materials::Rendering
             const auto* value = instance.GetResolvedParameter(parameter.Name);
             if (!value) return nullptr;
 
+            const bool needsTexture = parameter.Kind == EMaterialParameterKind::Texture ||
+                parameter.Kind == EMaterialParameterKind::TextureAtlas;
+
+            const bool needsValue = parameter.Kind == EMaterialParameterKind::Value ||
+                parameter.Kind == EMaterialParameterKind::TextureAtlas;
+
+            if (!needsTexture && !needsValue)
+            {
+                EE_CORE_ERROR("Unsupported material parameter kind for '{}'.", parameter.Name)
+                return nullptr;
+            }
+
+            if ((needsTexture && !parameter.TextureSlot) ||
+                (needsValue && !parameter.ValueSlot))
+            {
+                EE_CORE_ERROR(
+                    "Compiled material parameter '{}' is missing a storage slot.",
+                    parameter.Name
+                )
+                return nullptr;
+            }
+
             if (parameter.Kind == EMaterialParameterKind::Texture)
             {
-                const auto texCount = std::max(proxy->m_Textures.size(), size_t(parameter.Slot + 1));
+                const auto texCount = std::max(
+                    proxy->m_Textures.size(),
+                    size_t(*parameter.TextureSlot + 1)
+                );
                 proxy->m_Textures.resize(texCount);
-                proxy->m_Textures[parameter.Slot] = value->Texture;
+                proxy->m_Textures[*parameter.TextureSlot] = value->Texture;
                 continue;
             }
 
-            const auto valueCount = std::max(proxy->m_Values.size(), size_t(parameter.Slot + 1));
+            if (parameter.Kind == EMaterialParameterKind::TextureAtlas)
+            {
+                const auto& atlas = value->Atlas;
+
+                const auto textureCount = std::max(
+                    proxy->m_Textures.size(),
+                    size_t(*parameter.TextureSlot + 1)
+                );
+                proxy->m_Textures.resize(textureCount);
+
+                proxy->m_Textures[*parameter.TextureSlot] = atlas
+                    ? atlas->GetTexture()
+                    : nullptr;
+
+                const auto valueCount = std::max(
+                    proxy->m_Values.size(),
+                    size_t(*parameter.ValueSlot + 1)
+                );
+                proxy->m_Values.resize(valueCount);
+
+                const auto layout = atlas
+                    ? atlas->GetLayout()
+                    : STextureAtlasLayout{};
+
+                proxy->m_Values[*parameter.ValueSlot] = glm::vec4(
+                    layout.Columns,
+                    layout.Rows,
+                    layout.Frames,
+                    0
+                );
+
+                continue;
+            }
+
+            const auto valueCount = std::max(
+                proxy->m_Values.size(),
+                size_t(*parameter.ValueSlot + 1)
+            );
             proxy->m_Values.resize(valueCount);
-            proxy->m_Values[parameter.Slot] = value->Type == EMaterialParameterType::Float
+
+            proxy->m_Values[*parameter.ValueSlot] =
+                value->Type == EMaterialParameterType::Float
                 ? glm::vec4(value->Scalar, 0.0f, 0.0f, 0.0f)
                 : value->Vector;
         }
