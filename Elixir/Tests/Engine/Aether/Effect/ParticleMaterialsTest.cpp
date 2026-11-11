@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <Engine/Aether/Effect/Effect.h>
 #include <Engine/Aether/Effect/MaterialDescription.h>
+#include <Engine/Aether/Effect/MaterialFactory.h>
 #include <Engine/Graphics/Pipeline/PipelineBuilder.h>
 #include <Engine/Graphics/TextureAtlas.h>
 #include <limits>
@@ -75,6 +76,42 @@ TEST(ParticleMaterialsTest, RejectsInvalidLayoutsAndTiming)
             &error
         )
     );
+}
+
+TEST(ParticleMaterialsTest, MaterialDescriptionAcceptsValidTextureSettings)
+{
+    Effect::SMaterialDescription description;
+    EXPECT_TRUE(description.IsValid());
+    description.Atlas = {8, 4};
+    description.EmissiveScale = 0;
+    description.RefractionStrength = 0;
+    EXPECT_TRUE(description.IsValid());
+    description.EmissiveScale = 3;
+    description.RefractionStrength = 0.03f;
+    EXPECT_TRUE(description.IsValid());
+}
+
+TEST(ParticleMaterialsTest, MaterialDescriptionAndFactoryRejectInvalidTextureSettings)
+{
+    for (const auto layout : {STextureAtlasLayout{0, 1}, STextureAtlasLayout{1, 0}})
+    {
+        Effect::SMaterialDescription description;
+        description.Atlas = layout;
+        EXPECT_FALSE(description.IsValid());
+        EXPECT_FALSE(Effect::CreateMaterial("Invalid atlas", description));
+    }
+    for (const float invalid : {-1.0f, std::numeric_limits<float>::infinity(),
+        -std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()})
+    {
+        Effect::SMaterialDescription description;
+        description.EmissiveScale = invalid;
+        EXPECT_FALSE(description.IsValid());
+        EXPECT_FALSE(Effect::CreateMaterial("Invalid emissive scale", description));
+        description.EmissiveScale = 1;
+        description.RefractionStrength = invalid;
+        EXPECT_FALSE(description.IsValid());
+        EXPECT_FALSE(Effect::CreateMaterial("Invalid refraction strength", description));
+    }
 }
 
 TEST(ParticleMaterialsTest, AdditiveBlendPreservesBackgroundAndAlpha)

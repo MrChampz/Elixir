@@ -23,9 +23,7 @@ namespace Elixir::Aether::Effect
         const SMaterialDescription& desc
     )
     {
-        if (!desc.Atlas.IsValid() ||
-            !std::isfinite(desc.EmissiveScale) || desc.EmissiveScale < 0 ||
-            !std::isfinite(desc.RefractionStrength) || desc.RefractionStrength < 0)
+        if (!desc.IsValid())
         {
             EE_CORE_ERROR("Invalid particle material description '{}'.", name)
             return nullptr;

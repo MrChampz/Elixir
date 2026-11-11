@@ -44,10 +44,21 @@ namespace Elixir::Aether::Effect
         bool InterpolateAtlas = false;
 
         /** Selects whether the material responds to renderer lighting. */
-        Materials::EMaterialShadingModel ShadingModel = Materials::EMaterialShadingModel::Lit;
+        EMaterialShadingModel ShadingModel = EMaterialShadingModel::Lit;
 
         /** Controls blending and depth writes; existing effects default to translucent. */
-        Materials::EMaterialBlendMode BlendMode = Materials::EMaterialBlendMode::Translucent;
+        EMaterialBlendMode BlendMode = EMaterialBlendMode::Translucent;
+
+        /**
+         * @brief Checks the atlas layout and scalar texture settings.
+         * @return Whether the grid is nonempty and both scales are finite and nonnegative.
+         */
+        bool IsValid() const
+        {
+            return Atlas.IsValid() &&
+                std::isfinite(EmissiveScale) && EmissiveScale >= 0 &&
+                std::isfinite(RefractionStrength) && RefractionStrength >= 0;
+        }
 
         /**
          * @brief Compares all authored properties for material reuse.

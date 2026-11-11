@@ -496,9 +496,7 @@ namespace Elixir::Aether::Effect
                         desc.InterpolateAtlas = RequireBoolean(atlas, "interpolate");
                 }
 
-                if (!desc.Atlas.IsValid() ||
-                    desc.EmissiveScale < 0 ||
-                    desc.RefractionStrength < 0)
+                if (!desc.IsValid())
                     Fail("Invalid material texture settings.");
 
                 if (HasField(material, "shadingModel"))
