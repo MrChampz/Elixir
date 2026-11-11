@@ -149,7 +149,7 @@ TEST(MaterialAtlasTest, AnimationRangeComesFromTheFrameInputWhileNormalizedModeU
     );
     EXPECT_NE(indexed.find("input.ParticleTime.x"), std::string::npos);
     EXPECT_NE(indexed.find("9.000000"), std::string::npos);
-    EXPECT_EQ(indexed.find("AtlasLayout.x * AtlasLayout.y"), std::string::npos);
+    EXPECT_EQ(indexed.find("TextureAtlasFrameIndex("), std::string::npos);
 
     const auto normalized = graph.AddNode<TextureAtlasSample>(
         "Atlas",
@@ -164,6 +164,6 @@ TEST(MaterialAtlasTest, AnimationRangeComesFromTheFrameInputWhileNormalizedModeU
         EShaderStage::Pixel,
         EMaterialUsage::Particle
     );
-    EXPECT_NE(wholeGrid.find("AtlasLayout.x * AtlasLayout.y"), std::string::npos);
+    EXPECT_NE(wholeGrid.find("TextureAtlasFrameIndex("), std::string::npos);
     EXPECT_EQ(wholeGrid.find("AtlasLayout.z"), std::string::npos);
 }

@@ -252,8 +252,13 @@ namespace Elixir::Materials::Compilation
 
         auto sampledFrame = Widen(frame, EMaterialValueType::Float);
         if (normalizedFrame)
-            sampledFrame = "saturate(" + sampledFrame + ") * max(" + metadata +
-                ".x * " + metadata + ".y - 1, 0)";
+        {
+            sampledFrame = "TextureAtlasFrameIndex(" +
+                sampledFrame + ", " +
+                "uint2(" + metadata + ".xy), " +
+                (interpolate ? "true" : "false") +
+            ")";
+        }
 
         return "SampleTextureAtlas(" +
             textures + "[" + index + "], " +

@@ -1,6 +1,15 @@
 #ifndef MATERIAL_TEXTURE_ATLAS_HLSL
 #define MATERIAL_TEXTURE_ATLAS_HLSL
 
+// Discrete playback gives every cell an interval; blended playback spans frame centers.
+float TextureAtlasFrameIndex(float phase, uint2 grid, bool interpolate)
+{
+    grid = max(grid, uint2(1, 1));
+    const uint frames = grid.x * grid.y;
+    const float span = interpolate ? float(frames - 1) : float(frames);
+    return saturate(phase) * span;
+}
+
 float2 AtlasUV(float2 uv, uint frame, uint2 grid, float2 halfTexel)
 {
     float2 minimum = float2(frame % grid.x, frame / grid.x) / float2(grid);

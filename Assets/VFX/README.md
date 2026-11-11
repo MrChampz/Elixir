@@ -33,10 +33,13 @@ preserves destination alpha. Additive items do not write depth.
 Check the atlas dimensions against the source image when authoring a new effect.
 Cells are row-major from the top-left, starting at zero. Their count is derived
 from `columns * rows`; the atlas resource has no separate frame count. The embedded
-material advances across the whole grid over particle lifetime. Both diffuse
+material advances across the whole grid over particle lifetime. Without interpolation,
+every cell has an equal interval; with interpolation, playback blends from the first
+frame to the last. Both diffuse
 and emissive textures share that frame. Atlas sampling clamps to each cell's
-interior and uses mip level zero to avoid bleeding across cells. Materials without
-an atlas retain their existing texture sampling behavior.
+interior and uses mip level zero to avoid bleeding across cells.
+Sprite UVs use a top-left origin for both coordinate channels. Regular textures
+and atlases sample these same UVs without material-specific orientation changes.
 
 `colorRampTexture` replaces diffuse RGB with a horizontal ramp indexed by diffuse
 luminance, while preserving diffuse alpha and particle tint. `normalTexture`

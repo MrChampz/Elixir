@@ -782,7 +782,7 @@ TEST(VulkanShaderTest, AtlasSamplingClampsCellsAndInterpolatesWithoutBleeding)
         .AddressModeU = ESamplerAddressMode::ClampToEdge,
         .AddressModeV = ESamplerAddressMode::ClampToEdge
     });
-    std::array<glm::vec4, 8> values{};
+    std::array<glm::vec4, 16> values{};
     const auto output = DynamicStorageBuffer::Create(context, sizeof(values), values.data());
     shader->BindImage("atlas", texture->GetImage());
     shader->BindSampler("linearClamp", sampler);
@@ -810,10 +810,13 @@ TEST(VulkanShaderTest, AtlasSamplingClampsCellsAndInterpolatesWithoutBleeding)
     cmd->Flush();
     std::memcpy(values.data(), output->Map(), sizeof(values));
     output->Unmap();
-    const std::array<glm::vec4, 8> expected{
+    const std::array<glm::vec4, 16> expected{
         glm::vec4{1, 0, 0, 1}, glm::vec4{0, 1, 0, 1}, glm::vec4{0, 0, 1, 1},
         glm::vec4{1, 1, 1, 1}, glm::vec4{0.5f, 0.5f, 0, 1}, glm::vec4{1, 0, 0, 1},
-        glm::vec4{1, 1, 1, 1}, glm::vec4{1, 0, 0, 1}
+        glm::vec4{1, 1, 1, 1}, glm::vec4{1, 0, 0, 1},
+        glm::vec4{1, 0, 0, 1}, glm::vec4{1, 0, 0, 1}, glm::vec4{0, 1, 0, 1},
+        glm::vec4{0, 0, 1, 1}, glm::vec4{1, 1, 1, 1}, glm::vec4{1, 1, 1, 1},
+        glm::vec4{0, 0.5f, 0.5f, 1}, glm::vec4{1, 1, 1, 1}
     };
     for (size_t sample = 0; sample < values.size(); ++sample)
         for (uint32_t component = 0; component < 4; ++component)
@@ -920,4 +923,48 @@ TEST(VulkanShaderTest, SurfaceAndParticleDirectLightingUsesTheSharedBRDF)
         EXPECT_FLOAT_EQ(values[2][component], 0);
         EXPECT_FLOAT_EQ(values[3][component], 0);
     }
+}
+
+TEST(VulkanShaderTest, SpriteVertexUVsUseTopLeftOriginForBothCoordinateChannels)
+{
+    const auto context = VulkanTestContext::Get().GetGraphicsContext();
+    ShaderLoader loader(context);
+    const auto shader = loader.LoadShader(
+        ELIXIR_TEST_SHADER_DIR,
+        "ParticleSpriteUVValidation",
+        EShaderStage::Compute
+    );
+    ASSERT_TRUE(shader);
+    std::array<glm::vec4, 6> values{};
+    const auto output = DynamicStorageBuffer::Create(context, sizeof(values), values.data());
+    shader->BindStorageBuffer("results", output);
+    const auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
+    const auto cmd = context->GetUploadCommandBuffer();
+    cmd->Begin();
+    pipeline->Bind(cmd);
+    cmd->Dispatch(1);
+    const VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
+        VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT};
+    vkCmdPipelineBarrier(
+        static_cast<VulkanCommandBuffer*>(cmd.get())->GetVulkanCommandBuffer(),
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_HOST_BIT,
+        0,
+        1,
+        &barrier,
+        0,
+        nullptr,
+        0,
+        nullptr
+    );
+    cmd->End();
+    cmd->Flush();
+    std::memcpy(values.data(), output->Map(), sizeof(values));
+    output->Unmap();
+    const std::array<glm::vec4, 6> expected{
+        glm::vec4{0, 1, 0, 1}, glm::vec4{1, 0, 1, 0}, glm::vec4{1, 1, 1, 1},
+        glm::vec4{0, 1, 0, 1}, glm::vec4{0, 0, 0, 0}, glm::vec4{1, 0, 1, 0}
+    };
+    for (size_t vertex = 0; vertex < values.size(); ++vertex)
+        EXPECT_EQ(values[vertex], expected[vertex]) << "vertex " << vertex;
 }

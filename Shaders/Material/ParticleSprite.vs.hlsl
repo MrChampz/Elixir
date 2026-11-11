@@ -79,6 +79,7 @@ VSOutput main(VSInput input, uint vertexId : SV_VertexID)
     const float3 viewPos = mul(View, float4(worldPosition, 1.0f)).xyz + float3(offset, 0.0f);
 
     output.ClipPos = mul(Proj, float4(viewPos, 1.0f));
+    // Texture UVs start at the top-left; billboard positions increase upward.
     output.TexCoord = float2(normalizedPos.x, 1.0f - normalizedPos.y);
     output.TexCoord1 = output.TexCoord;
     output.ViewPos = viewPos;

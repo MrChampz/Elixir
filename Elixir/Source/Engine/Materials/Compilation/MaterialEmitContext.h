@@ -105,6 +105,7 @@ namespace Elixir::Materials::Compilation
          * @param frame Zero-based frame; clamped to the available range.
          * @param interpolate Whether to blend adjacent frames.
          * @param normalizedFrame Whether frame spans zero to one instead of frame indices.
+         * Discrete normalized playback gives each cell an equal interval.
          */
         std::string SampleTextureAtlas(
             const std::string& name,

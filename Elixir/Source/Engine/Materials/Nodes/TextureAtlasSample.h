@@ -11,7 +11,10 @@ namespace Elixir::Materials::Nodes
         /** Zero-based frame index. Fractional values can interpolate adjacent frames. */
         Index,
 
-        /** Value from zero to one spanning the resource's first and last frames. */
+        /**
+         * Value from zero to one spanning the grid. Discrete playback gives each cell
+         * an equal interval; interpolated playback blends from the first frame to the last.
+         */
         Normalized
     };
 
