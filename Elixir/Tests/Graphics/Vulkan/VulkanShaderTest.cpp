@@ -825,6 +825,99 @@ TEST(VulkanShaderTest, AtlasSamplingClampsCellsAndInterpolatesWithoutBleeding)
 }
 
 
+TEST(VulkanShaderTest, NonDivisibleAtlasGridsKeepFilteringInsideTexelCells)
+{
+    const auto context = VulkanTestContext::Get().GetGraphicsContext();
+    ShaderLoader loader(context);
+    const auto shader = loader.LoadShader(
+        ELIXIR_TEST_SHADER_DIR,
+        "TextureAtlasEdgesValidation",
+        EShaderStage::Compute
+    );
+    ASSERT_TRUE(shader);
+    for (const uint32_t width : {4u, 4096u})
+    {
+        const uint32_t columns = width == 4 ? 3 : 10;
+        constexpr uint32_t height = 4;
+        constexpr uint32_t rows = 3;
+        const uint32_t frames = columns * rows;
+        std::vector<glm::vec4> colors(frames);
+        std::vector<uint8_t> pixels(width * height * 4);
+        for (uint32_t frame = 0; frame < frames; ++frame)
+        {
+            const std::array<uint8_t, 4> color{
+                uint8_t((frame * 73 + 17) % 256),
+                uint8_t((frame * 37 + 53) % 256),
+                uint8_t((frame * 19 + 97) % 256),
+                255
+            };
+            colors[frame] = glm::vec4(color[0], color[1], color[2], color[3]) / 255.0f;
+            const uint32_t column = frame % columns;
+            const uint32_t row = frame / columns;
+            for (uint32_t y = row * height / rows; y < (row + 1) * height / rows; ++y)
+                for (uint32_t x = column * width / columns;
+                    x < (column + 1) * width / columns; ++x)
+                    std::memcpy(&pixels[(y * width + x) * 4], color.data(), color.size());
+        }
+        STexture2DCreateInfo info;
+        info.Format = EImageFormat::R8G8B8A8_UNORM;
+        info.Width = width;
+        info.Height = height;
+        info.InitialData = pixels.data();
+        const auto texture = Texture2D::Create(context, info);
+        const auto sampler = Sampler::Create(context, {
+            .MagFilter = ESamplerFilter::Linear,
+            .MinFilter = ESamplerFilter::Linear,
+            .AddressModeU = ESamplerAddressMode::ClampToEdge,
+            .AddressModeV = ESamplerAddressMode::ClampToEdge
+        });
+        std::vector<glm::vec4> values(frames * 6);
+        const auto byteCount = values.size() * sizeof(glm::vec4);
+        const auto output = DynamicStorageBuffer::Create(context, byteCount, values.data());
+        shader->BindImage("atlas", texture->GetImage());
+        shader->BindSampler("linearClamp", sampler);
+        shader->BindStorageBuffer("results", output);
+        const auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
+        const auto cmd = context->GetUploadCommandBuffer();
+        cmd->Begin();
+        pipeline->Bind(cmd);
+        cmd->Dispatch(1);
+        const VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
+            VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT};
+        vkCmdPipelineBarrier(
+            static_cast<VulkanCommandBuffer*>(cmd.get())->GetVulkanCommandBuffer(),
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_HOST_BIT,
+            0,
+            1,
+            &barrier,
+            0,
+            nullptr,
+            0,
+            nullptr
+        );
+        cmd->End();
+        cmd->Flush();
+        std::memcpy(values.data(), output->Map(), byteCount);
+        output->Unmap();
+        for (uint32_t frame = 0; frame < frames; ++frame)
+            for (uint32_t sample = 0; sample < 6; ++sample)
+            {
+                const auto expected = sample == 5
+                    ? (colors[frame] + colors[std::min(frame + 1, frames - 1)]) * 0.5f
+                    : colors[frame];
+                for (uint32_t component = 0; component < 4; ++component)
+                    EXPECT_NEAR(
+                        values[frame * 6 + sample][component],
+                        expected[component],
+                        0.001f
+                    )
+                        << "width " << width << ", frame " << frame << ", sample " << sample;
+            }
+    }
+}
+
+
 TEST(VulkanShaderTest, MigratedEffectsRenderAdditiveAndRefractiveMaterialsThroughAether)
 {
     const auto context = VulkanTestContext::Get().GetGraphicsContext();

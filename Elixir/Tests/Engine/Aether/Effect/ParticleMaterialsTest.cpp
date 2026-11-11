@@ -54,6 +54,7 @@ TEST(ParticleMaterialsTest, RejectsInvalidLayoutsAndTiming)
           R"("atlas":{"columns":1,"rows":1,"interpolate":3})",
           R"("emissiveScale":-1)",
           R"("shadingModel":"Unknown")",
+          R"("shadingModel":"Transmission")",
           R"("refractionStrength":-1)"})
     {
         std::string error;
@@ -111,6 +112,29 @@ TEST(ParticleMaterialsTest, MaterialDescriptionAndFactoryRejectInvalidTextureSet
         description.RefractionStrength = invalid;
         EXPECT_FALSE(description.IsValid());
         EXPECT_FALSE(Effect::CreateMaterial("Invalid refraction strength", description));
+    }
+}
+
+TEST(ParticleMaterialsTest, FactoryPreservesSupportedShadingModelsAndRejectsOthers)
+{
+    using Materials::EMaterialShadingModel;
+    for (const auto model : {EMaterialShadingModel::Lit, EMaterialShadingModel::Unlit})
+    {
+        Effect::SMaterialDescription description;
+        description.ShadingModel = model;
+        EXPECT_TRUE(description.IsValid());
+        const auto material = Effect::CreateMaterial("Supported shading", description);
+        ASSERT_TRUE(material);
+        EXPECT_EQ(material->GetShadingModel(), model);
+    }
+    for (const auto model : {EMaterialShadingModel::ClearCoat, EMaterialShadingModel::Subsurface,
+        EMaterialShadingModel::Cloth, EMaterialShadingModel::Transmission,
+        static_cast<EMaterialShadingModel>(255)})
+    {
+        Effect::SMaterialDescription description;
+        description.ShadingModel = model;
+        EXPECT_FALSE(description.IsValid());
+        EXPECT_FALSE(Effect::CreateMaterial("Unsupported shading", description));
     }
 }
 

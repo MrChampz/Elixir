@@ -2,6 +2,7 @@
 
 #include <Engine/Materials/Material.h>
 #include <Engine/Graphics/TextureAtlas.h>
+#include <cmath>
 
 namespace Elixir::Aether::Effect
 {
@@ -44,18 +45,22 @@ namespace Elixir::Aether::Effect
         bool InterpolateAtlas = false;
 
         /** Selects whether the material responds to renderer lighting. */
-        EMaterialShadingModel ShadingModel = EMaterialShadingModel::Lit;
+        Materials::EMaterialShadingModel ShadingModel = Materials::EMaterialShadingModel::Lit;
 
         /** Controls blending and depth writes; existing effects default to translucent. */
-        EMaterialBlendMode BlendMode = EMaterialBlendMode::Translucent;
+        Materials::EMaterialBlendMode BlendMode = Materials::EMaterialBlendMode::Translucent;
 
         /**
-         * @brief Checks the atlas layout and scalar texture settings.
-         * @return Whether the grid is nonempty and both scales are finite and nonnegative.
+         * @brief Checks the texture settings and supported particle shading model.
+         * @return Whether the grid, scales, and shading model are valid.
          */
         bool IsValid() const
         {
-            return Atlas.IsValid() &&
+            const bool supportedModel =
+                ShadingModel == Materials::EMaterialShadingModel::Lit ||
+                ShadingModel == Materials::EMaterialShadingModel::Unlit;
+
+            return supportedModel && Atlas.IsValid() &&
                 std::isfinite(EmissiveScale) && EmissiveScale >= 0 &&
                 std::isfinite(RefractionStrength) && RefractionStrength >= 0;
         }

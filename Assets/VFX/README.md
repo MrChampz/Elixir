@@ -26,7 +26,7 @@ preserves destination alpha. Additive items do not write depth.
   "emissiveTexture": "Assets/Textures/T_SideExplosion_0_volemission.png",
   "emissiveScale": 2.0,
   "blendMode": "Translucent",
-  "atlas": { "columns": 8, "rows": 8, "interpolate": true }
+  "atlas": { "columns": 10, "rows": 10, "interpolate": true }
 }
 ```
 
@@ -35,9 +35,11 @@ Cells are row-major from the top-left, starting at zero. Their count is derived
 from `columns * rows`; the atlas resource has no separate frame count. The embedded
 material advances across the whole grid over particle lifetime. Without interpolation,
 every cell has an equal interval; with interpolation, playback blends from the first
-frame to the last. Both diffuse
-and emissive textures share that frame. Atlas sampling clamps to each cell's
-interior and uses mip level zero to avoid bleeding across cells.
+frame to the last. Both diffuse and emissive textures share that frame. Atlas
+sampling clamps to each cell's interior and uses mip level zero to avoid bleeding
+across cells. Cell boundaries use `floor(cellIndex * imageExtent / cellCount)` in texels. Non-divisible grids
+remain valid: neighboring cells can differ by one texel, and filtering stays
+between the first and last texel centers of each cell.
 Sprite UVs use a top-left origin for both coordinate channels. Regular textures
 and atlases sample these same UVs without material-specific orientation changes.
 
