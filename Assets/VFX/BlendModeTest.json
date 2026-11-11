@@ -328,7 +328,6 @@
         "atlas": {
           "columns": 8,
           "rows": 8,
-          "frames": 64,
           "interpolate": true
         },
         "shadingModel": "Unlit"

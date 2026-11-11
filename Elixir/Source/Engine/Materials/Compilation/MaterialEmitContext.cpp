@@ -247,12 +247,13 @@ namespace Elixir::Materials::Compilation
                 layout = found->second;
         }
 
-        // .x -> columns, .y -> rows, .z -> frames
+        // .x -> columns, .y -> rows
         const auto metadata = Require(layout, "texture atlas layout");
 
         auto sampledFrame = Widen(frame, EMaterialValueType::Float);
         if (normalizedFrame)
-            sampledFrame = "saturate(" + sampledFrame + ") * max(" + metadata + ".z - 1, 0)";
+            sampledFrame = "saturate(" + sampledFrame + ") * max(" + metadata +
+                ".x * " + metadata + ".y - 1, 0)";
 
         return "SampleTextureAtlas(" +
             textures + "[" + index + "], " +
@@ -260,7 +261,6 @@ namespace Elixir::Materials::Compilation
             Widen(uv, EMaterialValueType::Float2) + ", " +
             sampledFrame + ", " +
             "uint2(" + metadata + ".xy), " +
-            "uint(" + metadata + ".z), " +
             (interpolate ? "true" : "false") +
         ")";
     }

@@ -13,15 +13,10 @@ namespace Elixir
         /** Number of vertical cells. */
         uint32_t Rows = 1;
 
-        /** Number of usable cells, starting at the top-left corner. */
-        uint32_t Frames = 1;
-
-        /** @brief Checks that the grid is nonempty and contains the usable frame range. */
+        /** @brief Checks that the grid is nonempty. */
         bool IsValid() const
         {
-            const uint64_t cells = uint64_t(Columns) * Rows;
-            return Columns > 0 && Rows > 0 &&
-                Frames > 0 && Frames <= cells;
+            return Columns > 0 && Rows > 0;
         }
 
         bool operator==(const STextureAtlasLayout& other) const = default;

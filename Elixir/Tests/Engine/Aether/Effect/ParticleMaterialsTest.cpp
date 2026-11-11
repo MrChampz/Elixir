@@ -18,7 +18,7 @@ TEST(ParticleMaterialsTest, ParsesAtlasAndGenericTextureProperties)
         "name":"Burst","maxParticles":16,"spawnRate":0,
         "burst":{"count":4,"interval":0,"delay":0.5},
         "material":{"texture":"base.png","blendMode":"Additive","shadingModel":"Unlit",
-            "atlas":{"columns":8,"rows":4,"frames":30,"interpolate":true},
+            "atlas":{"columns":8,"rows":4,"interpolate":true},
             "emissiveTexture":"emission.png","emissiveScale":3,
             "colorRampTexture":"ramp.png","normalTexture":"normal.png",
             "refractionTexture":"distortion.png","refractionStrength":0.03}}]})",
@@ -31,7 +31,6 @@ TEST(ParticleMaterialsTest, ParsesAtlasAndGenericTextureProperties)
     const auto& material = *emitter.GetMaterialDescription();
     EXPECT_EQ(material.Atlas.Columns, 8u);
     EXPECT_EQ(material.Atlas.Rows, 4u);
-    EXPECT_EQ(material.Atlas.Frames, 30u);
     EXPECT_TRUE(material.InterpolateAtlas);
     EXPECT_EQ(material.BlendMode, Materials::EMaterialBlendMode::Additive);
     EXPECT_EQ(material.ShadingModel, Materials::EMaterialShadingModel::Unlit);
@@ -49,9 +48,9 @@ TEST(ParticleMaterialsTest, ParsesAtlasAndGenericTextureProperties)
 TEST(ParticleMaterialsTest, RejectsInvalidLayoutsAndTiming)
 {
     for (const auto* settings :
-         {R"("atlas":{"columns":0,"rows":1,"frames":1})",
-          R"("atlas":{"columns":2,"rows":2,"frames":5})",
-          R"("atlas":{"columns":1,"rows":1,"frames":1,"interpolate":3})",
+         {R"("atlas":{"columns":0,"rows":1})",
+          R"("atlas":{"columns":2,"rows":0})",
+          R"("atlas":{"columns":1,"rows":1,"interpolate":3})",
           R"("emissiveScale":-1)",
           R"("shadingModel":"Unknown")",
           R"("refractionStrength":-1)"})

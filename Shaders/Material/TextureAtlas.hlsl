@@ -20,12 +20,11 @@ float4 SampleTextureAtlas(
     float2 uv,
     float frame,
     uint2 grid,
-    uint frames,
     bool interpolate
 )
 {
     grid = max(grid, uint2(1, 1));
-    frames = max(frames, 1u);
+    const uint frames = grid.x * grid.y;
 
     frame = isfinite(frame)
         ? clamp(frame, 0.0, float(frames - 1))

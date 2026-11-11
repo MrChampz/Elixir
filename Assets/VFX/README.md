@@ -26,13 +26,14 @@ preserves destination alpha. Additive items do not write depth.
   "emissiveTexture": "Assets/Textures/T_SideExplosion_0_volemission.png",
   "emissiveScale": 2.0,
   "blendMode": "Translucent",
-  "atlas": { "columns": 8, "rows": 8, "frames": 64, "interpolate": true }
+  "atlas": { "columns": 8, "rows": 8, "interpolate": true }
 }
 ```
 
 Check the atlas dimensions against the source image when authoring a new effect.
-Frames are row-major from the top-left, starting at zero. The embedded material
-advances from the first to the last frame over particle lifetime. Both diffuse
+Cells are row-major from the top-left, starting at zero. Their count is derived
+from `columns * rows`; the atlas resource has no separate frame count. The embedded
+material advances across the whole grid over particle lifetime. Both diffuse
 and emissive textures share that frame. Atlas sampling clamps to each cell's
 interior and uses mip level zero to avoid bleeding across cells. Materials without
 an atlas retain their existing texture sampling behavior.
@@ -55,6 +56,10 @@ materials and all particle geometries. `TextureAtlasSample` accepts an explicit 
 input, so it does not require particle timing. The node takes a `TextureAtlas`
 resource parameter. The resource retains its texture and immutable layout; the
 node selects frame interpolation and index or normalized frame coordinates.
+To animate only part of a grid, use index mode and connect a graph expression to
+`Frame`. For example, `ParticleTime.NormalizedAge * 9` selects frames 0 through 9
+of a 4-by-3 atlas, leaving the last two cells unused. Normalized mode instead spans
+the whole grid, so overriding the resource also updates that animation span.
 Material instances can override the resource, including its layout, without
 recompiling the graph. The embedded JSON atlas description remains an authoring
 adapter that creates these resources. `ParticleTime` supplies particle

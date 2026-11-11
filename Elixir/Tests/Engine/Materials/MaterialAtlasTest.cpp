@@ -1,6 +1,8 @@
 #include "MaterialGraphTestEmission.h"
 #include <gtest/gtest.h>
 #include <Engine/Materials/Nodes/TextureAtlasSample.h>
+#include <Engine/Materials/Nodes/Constant.h>
+#include <Engine/Materials/Nodes/Multiply.h>
 #include <Engine/Materials/Nodes/ParticleTime.h>
 #include <Engine/Materials/Nodes/SceneColor.h>
 
@@ -123,4 +125,45 @@ TEST(MaterialAtlasTest, AtlasParametersReserveValueAndTextureSlotsAndCheckBothLi
          .DefaultValue = SMaterialParameter::MakeTextureAtlas(nullptr)}
     );
     EXPECT_FALSE(Compiler::Build(textures));
+}
+
+TEST(MaterialAtlasTest, AnimationRangeComesFromTheFrameInputWhileNormalizedModeUsesTheGrid)
+{
+    MaterialGraph graph;
+    const auto age = graph.AddNode<ParticleTime>();
+    const auto lastFrame = graph.AddNode<Constant>(glm::vec4{9}, EMaterialValueType::Float);
+    const auto frame = graph.AddNode<Multiply>();
+    graph.Connect(age, frame, 0);
+    graph.Connect(lastFrame, frame, 1);
+    const auto atlas = graph.AddNode<TextureAtlasSample>("Atlas", true);
+    graph.Connect(frame, atlas, 1);
+    graph.SetChannel(EMaterialChannel::BaseColor, atlas);
+    SMaterialGraphBindings bindings;
+    bindings.Textures["Atlas"] = "3u";
+    bindings.AtlasLayouts["Atlas"] = "AtlasLayout";
+    const auto indexed = EmitGraph(
+        graph,
+        bindings,
+        EShaderStage::Pixel,
+        EMaterialUsage::Particle
+    );
+    EXPECT_NE(indexed.find("input.ParticleTime.x"), std::string::npos);
+    EXPECT_NE(indexed.find("9.000000"), std::string::npos);
+    EXPECT_EQ(indexed.find("AtlasLayout.x * AtlasLayout.y"), std::string::npos);
+
+    const auto normalized = graph.AddNode<TextureAtlasSample>(
+        "Atlas",
+        true,
+        ETextureAtlasFrameMode::Normalized
+    );
+    graph.Connect(age, normalized, 1);
+    graph.SetChannel(EMaterialChannel::BaseColor, normalized);
+    const auto wholeGrid = EmitGraph(
+        graph,
+        bindings,
+        EShaderStage::Pixel,
+        EMaterialUsage::Particle
+    );
+    EXPECT_NE(wholeGrid.find("AtlasLayout.x * AtlasLayout.y"), std::string::npos);
+    EXPECT_EQ(wholeGrid.find("AtlasLayout.z"), std::string::npos);
 }

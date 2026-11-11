@@ -813,7 +813,7 @@ TEST(VulkanShaderTest, AtlasSamplingClampsCellsAndInterpolatesWithoutBleeding)
     const std::array<glm::vec4, 8> expected{
         glm::vec4{1, 0, 0, 1}, glm::vec4{0, 1, 0, 1}, glm::vec4{0, 0, 1, 1},
         glm::vec4{1, 1, 1, 1}, glm::vec4{0.5f, 0.5f, 0, 1}, glm::vec4{1, 0, 0, 1},
-        glm::vec4{0, 0, 1, 1}, glm::vec4{1, 0, 0, 1}
+        glm::vec4{1, 1, 1, 1}, glm::vec4{1, 0, 0, 1}
     };
     for (size_t sample = 0; sample < values.size(); ++sample)
         for (uint32_t component = 0; component < 4; ++component)

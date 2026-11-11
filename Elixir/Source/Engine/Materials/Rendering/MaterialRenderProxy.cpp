@@ -91,7 +91,7 @@ namespace Elixir::Materials::Rendering
                 proxy->m_Values[*parameter.ValueSlot] = glm::vec4(
                     layout.Columns,
                     layout.Rows,
-                    layout.Frames,
+                    0,
                     0
                 );
 

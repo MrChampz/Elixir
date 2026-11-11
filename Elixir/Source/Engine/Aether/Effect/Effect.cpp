@@ -491,7 +491,6 @@ namespace Elixir::Aether::Effect
 
                     desc.Atlas.Columns = RequireUInt(atlas, "columns");
                     desc.Atlas.Rows = RequireUInt(atlas, "rows");
-                    desc.Atlas.Frames = RequireUInt(atlas, "frames");
 
                     if (HasField(atlas, "interpolate"))
                         desc.InterpolateAtlas = RequireBoolean(atlas, "interpolate");

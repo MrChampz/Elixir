@@ -310,17 +310,17 @@ TEST(VulkanMaterialGraphTest, AtlasResourcesRetainTextureAndOverrideLayoutWithou
             info.Width = info.Height = 4;
             info.InitialData = pixels.data();
             auto texture = Texture2D::Create(context, info);
-            auto first = TextureAtlas::Create(texture, {2, 2, 4});
-            auto second = TextureAtlas::Create(texture, {4, 1, 3});
+            auto first = TextureAtlas::Create(texture, {2, 2});
+            auto second = TextureAtlas::Create(texture, {4, 2});
             ASSERT_TRUE(first);
             ASSERT_TRUE(second);
             EXPECT_NE(first->GetUUID(), second->GetUUID());
             EXPECT_NE(first->GetUUID(), texture->GetUUID());
-            EXPECT_TRUE(TextureAtlas::Create(texture, {3, 2, 4}));
-            EXPECT_FALSE(TextureAtlas::Create(texture, {5, 2, 4}));
-            EXPECT_FALSE(TextureAtlas::Create(texture, {2, 2, 5}));
-            EXPECT_FALSE(TextureAtlas::Create(nullptr, {2, 2, 4}));
-            EXPECT_FALSE(TextureAtlas::Create(texture, {0, 0, 0}));
+            EXPECT_TRUE(TextureAtlas::Create(texture, {3, 2}));
+            EXPECT_FALSE(TextureAtlas::Create(texture, {5, 2}));
+            EXPECT_FALSE(TextureAtlas::Create(texture, {2, 0}));
+            EXPECT_FALSE(TextureAtlas::Create(nullptr, {2, 2}));
+            EXPECT_FALSE(TextureAtlas::Create(texture, {0, 0}));
             std::weak_ptr<Texture> retained = texture;
             texture.reset();
             EXPECT_FALSE(retained.expired());
@@ -360,8 +360,8 @@ TEST(VulkanMaterialGraphTest, AtlasResourcesRetainTextureAndOverrideLayoutWithou
                 Rendering::MaterialRenderProxy::Create(compiled.Material, *instance);
             ASSERT_TRUE(replacement);
             EXPECT_EQ(original->GetCompiledMaterial(), replacement->GetCompiledMaterial());
-            EXPECT_EQ(original->GetValues()[0], glm::vec4(2, 2, 4, 0));
-            EXPECT_EQ(replacement->GetValues()[0], glm::vec4(4, 1, 3, 0));
+            EXPECT_EQ(original->GetValues()[0], glm::vec4(2, 2, 0, 0));
+            EXPECT_EQ(replacement->GetValues()[0], glm::vec4(4, 2, 0, 0));
             EXPECT_EQ(replacement->GetValues()[1].x, 7);
             EXPECT_EQ(original->GetTextures()[0], second->GetTexture());
             Rendering::FrameTable table(
@@ -373,14 +373,14 @@ TEST(VulkanMaterialGraphTest, AtlasResourcesRetainTextureAndOverrideLayoutWithou
                 }
             );
             ASSERT_TRUE(table.Add(*replacement));
-            EXPECT_EQ(table.GetData()[0].Values[0], glm::vec4(4, 1, 3, 0));
+            EXPECT_EQ(table.GetData()[0].Values[0], glm::vec4(4, 2, 0, 0));
             EXPECT_EQ(table.GetData()[0].TextureIndices[0], 9u);
             ASSERT_TRUE(instance->SetTextureAtlas("Atlas", nullptr));
             const auto empty =
                 Rendering::MaterialRenderProxy::Create(compiled.Material, *instance);
             ASSERT_TRUE(empty);
             EXPECT_FALSE(empty->GetTextures()[0]);
-            EXPECT_EQ(empty->GetValues()[0], glm::vec4(1, 1, 1, 0));
+            EXPECT_EQ(empty->GetValues()[0], glm::vec4(1, 1, 0, 0));
         }
     ));
 }
