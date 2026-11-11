@@ -849,7 +849,9 @@ TEST(VulkanShaderTest, MigratedEffectsRenderAdditiveAndRefractiveMaterialsThroug
         ASSERT_TRUE(system) << name;
         for (const auto& emitter : system->GetEmitters())
         {
-            auto description = *emitter->GetMaterialDescription();
+            const auto& materialDescription = emitter->GetMaterialDescription();
+            ASSERT_TRUE(materialDescription) << name << ": " << emitter->GetName();
+            auto description = *materialDescription;
             for (auto* path : {&description.BaseColorTexturePath,
                 &description.EmissiveTexturePath, &description.ColorRampTexturePath,
                 &description.NormalTexturePath, &description.RefractionTexturePath})

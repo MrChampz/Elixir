@@ -267,6 +267,32 @@ TEST(VulkanMaterialGraphTest, CompilesMigratedParticleEffectsForEveryGeometry)
     }));
 }
 
+TEST(VulkanMaterialGraphTest, OrdinarySurfaceMaterialsDoNotRequireSceneColorBindings)
+{
+    auto* context = VulkanTestContext::Get().GetGraphicsContext();
+    ASSERT_TRUE(context->RunRenderTaskAndWait(
+        [&]
+        {
+            ShaderWorkspace workspace;
+            ShaderLoader loader(context);
+            Material material("Ordinary surface", EMaterialUsage::Surface);
+            MaterialGraph graph;
+            const auto color = graph.AddNode<Constant>(
+                glm::vec4(1.0f),
+                EMaterialValueType::Float3
+            );
+            graph.SetChannel(EMaterialChannel::BaseColor, color);
+            material.SetGraph(std::move(graph));
+            const auto result = Compiler::Compile(&loader, material);
+            ASSERT_TRUE(result) << result.Diagnostics;
+            const auto& shader = result.Material->SurfaceShader;
+            ASSERT_TRUE(shader);
+            EXPECT_FALSE(shader->HasBinding("sceneColorTexture"));
+            EXPECT_FALSE(shader->HasBinding("sceneColorSampler"));
+        }
+    ));
+}
+
 TEST(VulkanMaterialGraphTest, AtlasAndSceneSamplingAlsoCompileForSurfaceMaterials)
 {
     auto* context = VulkanTestContext::Get().GetGraphicsContext();
