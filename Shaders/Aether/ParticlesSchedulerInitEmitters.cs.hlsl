@@ -1,5 +1,8 @@
 #include "ParticlesSchedulerCommon.hlsl"
 
+[[vk::binding(1, 0)]]
+StructuredBuffer<SGPUEmitter> emitters;
+
 [[vk::binding(4, 0)]]
 StructuredBuffer<SGPUSystemInstance> instances;
 
@@ -35,6 +38,8 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     {
         SGPUEmitterInstanceState state = (SGPUEmitterInstanceState)0;
         state.Generation = instance.Generation;
+        state.BurstAccumulator = -emitters[
+            instance.EmitterBaseOffset + localEmitterIndex].BurstDelaySeconds;
         emitterStates[EmitterStateIndex(instance, localEmitterIndex)] = state;
 
         triggerQueueStates[TriggerQueueStateIndex(instance, 0, localEmitterIndex)]

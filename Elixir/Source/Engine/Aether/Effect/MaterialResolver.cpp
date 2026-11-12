@@ -27,6 +27,10 @@ namespace Elixir::Aether::Effect
 
                 material = m_Registry.Find(name);
                 const auto refreshed = CreateMaterial(name, *desc);
+
+                if (!refreshed)
+                    return false;
+
                 if (material)
                 {
                     if (!m_Registry.Replace(refreshed))

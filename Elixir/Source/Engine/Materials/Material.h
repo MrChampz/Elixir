@@ -61,6 +61,9 @@ namespace Elixir::Materials
 
         /** Blends fragments with the color already in the target. */
         Translucent,
+
+        /** Adds alpha-weighted color to the target without replacing its background. */
+        Additive,
     };
 
     /** @brief Defines the numeric value type used by a material. */
@@ -125,13 +128,13 @@ namespace Elixir::Materials
         EMaterialUsage GetUsage() const { return m_Usage; }
 
         /**
-         * @brief Sets the lighting model used when rendering this material as a surface.
-         * @param model Lighting model to use.
+         * @brief Sets the lighting model used by compatible material passes.
+         * @param model Lighting model to use. Particles support Lit and Unlit.
          * @return True when the shading model changed.
          */
         bool SetShadingModel(EMaterialShadingModel model);
 
-        /** @brief Returns the lighting model used by this material as a surface. */
+        /** @brief Returns the lighting model used by compatible material passes. */
         EMaterialShadingModel GetShadingModel() const { return m_ShadingModel; }
 
         /**

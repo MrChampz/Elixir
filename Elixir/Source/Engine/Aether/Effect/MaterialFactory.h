@@ -21,7 +21,7 @@ namespace Elixir::Aether::Effect
      *
      * @param name Name assigned to the created material.
      * @param desc Serialized material data from the effect asset.
-     * @return A new unregistered Material.
+     * @return A new unregistered Material, or null when the description is invalid.
      *
      * @note The caller owns registration and later creation of a MaterialInstance.
      */

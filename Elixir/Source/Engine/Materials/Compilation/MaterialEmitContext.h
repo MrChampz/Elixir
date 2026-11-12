@@ -99,6 +99,35 @@ namespace Elixir::Materials::Compilation
         ) const;
 
         /**
+         * @brief Samples a row-major texture atlas at a zero-based fractional frame.
+         * @param name Material texture parameter.
+         * @param uv Coordinates within one atlas cell.
+         * @param frame Zero-based frame; clamped to the available range.
+         * @param interpolate Whether to blend adjacent frames.
+         * @param normalizedFrame Whether frame spans zero to one instead of frame indices.
+         * Discrete normalized playback gives each cell an equal interval.
+         */
+        std::string SampleTextureAtlas(
+            const std::string& name,
+            const SMaterialExpression& uv,
+            const SMaterialExpression& frame,
+            bool interpolate,
+            bool normalizedFrame
+        ) const;
+
+        /**
+         * @brief Samples the background at the fragment position plus an offset.
+         * @param offset Offset measured in normalized screen coordinates.
+         */
+        std::string SceneColor(const SMaterialExpression& offset) const;
+
+        /** @brief Returns particle age in seconds; unavailable for surface materials. */
+        std::string ParticleAge() const;
+
+        /** @brief Returns particle lifetime in seconds; unavailable for surface materials. */
+        std::string ParticleLifetime() const;
+
+        /**
          * @brief Evaluate a reusable function with this context's inputs and environment.
          * @param function Immutable function to evaluate.
          */

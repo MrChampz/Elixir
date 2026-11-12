@@ -36,5 +36,20 @@ namespace Elixir::Materials::Compilation
 
         /** Linear wrap, linear clamp, point wrap, and point clamp, respectively. */
         std::array<std::string, 4> TextureSamplers;
+
+        /** Particle age in seconds, or empty for non-particle geometry. */
+        std::string ParticleAge;
+
+        /** Particle lifetime in seconds, or empty for non-particle geometry. */
+        std::string ParticleLifetime;
+
+        /** Fragment position in target pixels, available in the pixel stage. */
+        std::string ScreenPosition;
+
+        /** HLSL texture containing the background before this render item. */
+        std::string SceneColorTexture;
+
+        /** HLSL sampler used to read the captured background. */
+        std::string SceneColorSampler;
     };
 }

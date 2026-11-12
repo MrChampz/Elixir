@@ -32,11 +32,11 @@ namespace Elixir::Aether::Simulation
             uint32_t    RenderMode{};
             float       SpawnRatePerSecond{};
             float       GravityScale{};
+            float       BurstDelaySeconds = 0;
             float       BurstIntervalSeconds{};
             uint32_t    BurstCount{};
             uint32_t    IsTriggerDriven{};
             uint32_t    KillOnLifetimeExpired = 1;
-            uint32_t    Padding = 0;
         };
 
         struct SGPUSystemInstance
@@ -83,7 +83,7 @@ namespace Elixir::Aether::Simulation
         {
             uint32_t TargetEmitterIndex = 0;
             uint32_t BurstCount = 0;
-            float DelaySeconds = 0.0f;
+            float    DelaySeconds = 0.0f;
         };
 
         struct SGPUTriggerEvent
@@ -154,6 +154,7 @@ namespace Elixir::Aether::Simulation
                 .RenderMode = uint32_t(emitter.RenderMode),
                 .SpawnRatePerSecond = emitter.SpawnRatePerSecond,
                 .GravityScale = emitter.GravityScale,
+                .BurstDelaySeconds = emitter.BurstDelaySeconds,
                 .BurstIntervalSeconds = emitter.BurstIntervalSeconds,
                 .BurstCount = emitter.BurstCount,
                 .IsTriggerDriven = emitter.IsTriggerDriven ? 1u : 0u,
@@ -611,6 +612,7 @@ namespace Elixir::Aether::Simulation
             sizeof(schedulePushConstants)
         );
 
+        m_SchedulerInitEmittersShader->BindStorageBuffer("emitters", m_EmitterBuffer);
         m_SchedulerInitEmittersShader->BindStorageBuffer(
             "instances",
             m_SystemInstanceBuffer

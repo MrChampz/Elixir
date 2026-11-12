@@ -20,6 +20,12 @@ namespace Elixir::Aether::Rendering
         glm::mat4 ViewProj;
         glm::vec3 CameraPos;
         float     Time  = 0.0f;
+
+        /** Direction toward the default Surface light, in world space. */
+        glm::vec4 LightDirection{};
+        
+        /** Linear light RGB color, with intensity in the W component. */
+        glm::vec4 LightColor{};
     };
 
     /**

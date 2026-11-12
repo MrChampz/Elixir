@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Engine/Graphics/TextureAtlas.h>
+
 namespace Elixir::Materials
 {
     /**
@@ -11,7 +13,10 @@ namespace Elixir::Materials
         Value,
 
         /** A texture parameter. */
-        Texture
+        Texture,
+
+        /** A texture atlas resource. */
+        TextureAtlas
     };
 
     /**
@@ -26,7 +31,10 @@ namespace Elixir::Materials
         Float4,
 
         /** A texture reference. */
-        Texture
+        Texture,
+
+        /** A texture atlas resource. */
+        TextureAtlas
     };
 
     /**
@@ -47,6 +55,9 @@ namespace Elixir::Materials
 
         /** Texture value when @ref Type is `Texture`. */
         Ref<Texture> Texture;
+
+        /** Atlas value when Type is TextureAtlas. */
+        Ref<TextureAtlas> Atlas;
 
         /**
          * @brief Creates a scalar material parameter.
@@ -84,6 +95,19 @@ namespace Elixir::Materials
             SMaterialParameter param;
             param.Type = EMaterialParameterType::Texture;
             param.Texture = texture;
+            return param;
+        }
+
+        /**
+         * @brief Creates a texture atlas material parameter.
+         * @param atlas Resource to retain, or null for an unassigned parameter.
+         * @return Parameter whose type is TextureAtlas.
+         */
+        static SMaterialParameter MakeTextureAtlas(const Ref<TextureAtlas>& atlas)
+        {
+            SMaterialParameter param;
+            param.Type = EMaterialParameterType::TextureAtlas;
+            param.Atlas = atlas;
             return param;
         }
     };

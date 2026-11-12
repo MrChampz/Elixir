@@ -1,3 +1,5 @@
+#include "../Material/TextureAtlas.hlsl"
+#include "../Material/SceneSampling.hlsl"
 // Template pixel shader for node-graph surface materials.
 //
 // The compiler replaces both markers below. The graph marker provides the
@@ -8,13 +10,9 @@
 
 #include "../Material/NormalSampling.hlsl"
 #include "../Material/NormalTransforms.hlsl"
+#include "../Material/DirectLighting.hlsl"
 
-#define MATERIAL_SHADING_MODEL_UNLIT        0
-#define MATERIAL_SHADING_MODEL_LIT          1
-#define MATERIAL_SHADING_MODEL_CLEAR_COAT   2
-#define MATERIAL_SHADING_MODEL_SUBSURFACE   3
-#define MATERIAL_SHADING_MODEL_CLOTH        4
-#define MATERIAL_SHADING_MODEL_TRANSMISSION 5
+#include "../Material/ShadingModels.hlsl"
 
 static const float INFINITY = asfloat(0x7F800000u);
 
@@ -65,15 +63,11 @@ Texture2D prefilteredTexture : register(t3);
 [[vk::binding(3, 2)]]
 SamplerState environmentSampler : register(s1);
 
-#if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_TRANSMISSION
-
 [[vk::binding(4, 2)]]
 Texture2D sceneColorTexture;
 
 [[vk::binding(5, 2)]]
 SamplerState sceneColorSampler;
-
-#endif
 
 struct PushConstants
 {
@@ -260,47 +254,10 @@ float3 SampleTransmission(float2 pixel, float roughness, float ior)
 
 #endif
 
-float DistributionGGX(float NdotH, float roughness)
-{
-    const float alpha = roughness * roughness;
-    const float alphaSquared = alpha * alpha;
-    const float denominator = NdotH * NdotH * (alphaSquared - 1.0f) + 1.0f;
-    return alphaSquared / max(3.14159265359f * denominator * denominator, 1e-7f);
-}
-
-float GeometrySchlickGGX(float NdotX, float roughness)
-{
-    const float roughnessPlusOne = roughness + 1.0f;
-    const float k = (roughnessPlusOne * roughnessPlusOne) * 0.125f;
-    return NdotX / max(NdotX * (1.0f - k) + k, 1e-7f);
-}
-
-float GeometrySmith(float NdotV, float NdotL, float roughness)
-{
-    return GeometrySchlickGGX(NdotV, roughness) * GeometrySchlickGGX(NdotL, roughness);
-}
-
-float3 FresnelSchlick(float VdotH, float3 F0)
-{
-    return F0 + (1.0f - F0) * pow(saturate(1.0f - VdotH), 5.0f);
-}
-
 float3 FresnelSchlickRoughness(float NdotV, float3 F0, float roughness)
 {
     const float3 roughnessF0 = max((1.0f - roughness).xxx, F0);
     return F0 + (roughnessF0 - F0) * pow(saturate(1.0f - NdotV), 5.0f);
-}
-
-/**
- * Filters specular highlights where the final shading normal changes sharply
- * between adjacent screen pixels.
- */
-float FilterSpecularRoughness(float roughness, float3 normal)
-{
-    const float3 ndx = ddx(normal);
-    const float3 ndy = ddy(normal);
-    const float variance = max(dot(ndx, ndx), dot(ndy, ndy));
-    return sqrt(saturate(roughness * roughness + variance));
 }
 
 /**
@@ -455,20 +412,19 @@ float4 main(PSInput input) : SV_Target0
     // Cook-Torrance microfacet BRDF for the directional light.
     if (NdotL > 0.0f)
     {
-        const float3 H = normalize(V + L);
-        const float NdotH = saturate(dot(N, H));
-        const float VdotH = saturate(dot(V, H));
-
-        const float distribution = DistributionGGX(NdotH, roughness);
-        const float geometry = GeometrySmith(NdotV, NdotL, roughness);
-        const float3 fresnelDirect = FresnelSchlick(VdotH, F0);
-        const float3 specularDirect = (distribution * geometry * fresnelDirect) /
-            max(4.0f * NdotV * NdotL, 1e-4f);
-
-        const float3 diffuseWeightDirect = (1.0f - fresnelDirect) * (1.0f - surface.Metallic);
-        directDiffuseContribution = diffuseWeightDirect * surface.BaseColor /
-            3.14159265359f * radiance * NdotL * ao;
-        directSpecularContribution = specularDirect * radiance * NdotL * ao;
+        const SDirectLighting direct = EvaluateDirectLighting(
+            surface.BaseColor,
+            N,
+            V,
+            roughness,
+            surface.Metallic,
+            F0,
+            L,
+            radiance,
+            ao
+        );
+        directDiffuseContribution = direct.Diffuse;
+        directSpecularContribution = direct.Specular;
         color += directDiffuseContribution + directSpecularContribution;
 
 #if MATERIAL_SHADING_MODEL == MATERIAL_SHADING_MODEL_CLOTH

@@ -61,21 +61,32 @@ namespace Elixir::Materials::Compilation
 
         for (const auto& [name, definition] : parameters)
         {
-            auto& slot = definition.Kind == EMaterialParameterKind::Texture
-                ? textureSlot
-                : valueSlot;
+            SCompiledParameter parameter{
+                .Name = name,
+                .Kind = definition.Kind,
+                .ValueType = definition.ValueType
+            };
 
-            if (slot >= 32)
+            switch (definition.Kind)
+            {
+                case EMaterialParameterKind::Value:
+                    parameter.ValueSlot = valueSlot++;
+                    break;
+                case EMaterialParameterKind::Texture:
+                    parameter.TextureSlot = textureSlot++;
+                    break;
+                case EMaterialParameterKind::TextureAtlas:
+                    parameter.TextureSlot = textureSlot++;
+                    parameter.ValueSlot = valueSlot++;
+                    break;
+                default:
+                    return { .Diagnostics = "Unsupported material parameter kind." };
+            }
+
+            if (textureSlot > 32 || valueSlot > 32)
                 return { .Diagnostics = "Material parameter capacity exceeded." };
 
-            layout.push_back({
-                name,
-                definition.Kind,
-                definition.ValueType,
-                slot
-            });
-
-            ++slot;
+            layout.push_back(std::move(parameter));
         }
 
         const auto compiled = CreateRef<SCompiledMaterial>();

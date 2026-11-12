@@ -27,10 +27,18 @@ namespace Elixir::Materials
                     parameter->ValueType == type;
             }
 
+            /** @copydoc MaterialNodeValidationContext::HasTextureParameter */
             bool HasTextureParameter(const std::string_view name) const override
             {
                 const auto* parameter = m_Material.FindParameter(std::string(name));
                 return parameter && parameter->Kind == EMaterialParameterKind::Texture;
+            }
+
+            /** @copydoc MaterialNodeValidationContext::HasTextureAtlasParameter */
+            bool HasTextureAtlasParameter(const std::string_view name) const override
+            {
+                const auto* parameter = m_Material.FindParameter(std::string(name));
+                return parameter && parameter->Kind == EMaterialParameterKind::TextureAtlas;
             }
 
             EMaterialUsage GetUsage() const override
@@ -54,13 +62,18 @@ namespace Elixir::Materials
         ++m_Revision;
     }
 
-    bool Material::SetShadingModel(EMaterialShadingModel model)
+    bool Material::SetShadingModel(const EMaterialShadingModel model)
     {
-        if (m_Usage != EMaterialUsage::Surface && model != EMaterialShadingModel::Lit)
-            return false;
-
         if (m_ShadingModel == model)
             return false;
+
+        const bool particleModel = model == EMaterialShadingModel::Lit ||
+            model == EMaterialShadingModel::Unlit;
+
+        const bool supported = m_Usage == EMaterialUsage::Surface ||
+            (m_Usage == EMaterialUsage::Particle && particleModel);
+
+        if (!supported) return false;
 
         m_ShadingModel = model;
         ++m_Revision;
@@ -171,12 +184,18 @@ namespace Elixir::Materials
         const SMaterialParameter& value
     )
     {
-        if (definition.Kind == EMaterialParameterKind::Texture)
-            return value.Type == EMaterialParameterType::Texture;
-
-        if (definition.ValueType == EMaterialValueType::Float)
-            return value.Type == EMaterialParameterType::Float;
-
-        return value.Type == EMaterialParameterType::Float4;
+        switch (definition.Kind)
+        {
+            case EMaterialParameterKind::Value:
+                return definition.ValueType == EMaterialValueType::Float
+                    ? value.Type == EMaterialParameterType::Float
+                    : value.Type == EMaterialParameterType::Float4;
+            case EMaterialParameterKind::Texture:
+                return value.Type == EMaterialParameterType::Texture;
+            case EMaterialParameterKind::TextureAtlas:
+                return value.Type == EMaterialParameterType::TextureAtlas;
+            default:
+                return false;
+        }
     }
 }

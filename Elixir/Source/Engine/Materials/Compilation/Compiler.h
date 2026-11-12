@@ -29,8 +29,11 @@ namespace Elixir::Materials::Compilation
         /** @brief Value type used when Kind is Value. */
         EMaterialValueType ValueType = EMaterialValueType::Float4;
 
-        /** @brief Slot in the compiled value or texture array. */
-        uint32_t Slot = 0;
+        /** Value slot, or empty when the parameter has no numeric data. */
+        std::optional<uint32_t> ValueSlot;
+
+        /** Texture slot, or empty when the parameter has no texture. */
+        std::optional<uint32_t> TextureSlot;
     };
 
     /**

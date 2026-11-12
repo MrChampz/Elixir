@@ -14,6 +14,8 @@ namespace Elixir
         void SetCullMode(ECullMode mode, EFrontFace frontFace);
         void SetMultisamplingNone();
         void EnableAlphaBlending();
+        /** @brief Adds alpha-weighted source color while preserving destination alpha. */
+        void EnableAdditiveBlending();
         void EnableAlphaBlendingMax();
         void DisableBlending();
         void DisableDepthTest();

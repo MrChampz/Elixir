@@ -60,6 +60,10 @@ namespace Elixir::Aether
 
         float SpawnRatePerSecond = 1.0f;
         uint32_t BurstCount = 0u;
+
+        /** Initial delay before automatic bursts, in seconds. */
+        float BurstDelaySeconds = 0.0f;
+
         float BurstIntervalSeconds = 0.0f;
         int32_t TriggerSourceEmitterIndex = -1;
         float TriggerDelaySeconds = 0.0f;
@@ -270,6 +274,17 @@ namespace Elixir::Aether
         void SetBurst(uint32_t count, float intervalSeconds);
 
         /**
+         * @brief Sets the initial delay for automatic bursts of any emitter geometry.
+         * @param delaySeconds Nonnegative finite delay in seconds.
+         * Trigger delays are configured separately.
+         * @return Whether the delay is valid and was stored.
+         */
+        bool SetBurstDelay(float delaySeconds);
+
+        /** @brief Returns the initial automatic burst delay in seconds. */
+        float GetBurstDelay() const { return m_BurstDelaySeconds; }
+
+        /**
          * @brief Makes this emitter react to another emitter's trigger events.
          *
          * The source name is resolved when the parent system is compiled.
@@ -396,6 +411,7 @@ namespace Elixir::Aether
         std::string m_SpawnRateParamName;
         float m_SpawnRate = 0.0f; // particles per second
         uint32_t m_BurstCount = 0u;
+        float m_BurstDelaySeconds = 0.0f;
         float m_BurstIntervalSeconds = 0.0f;
         std::string m_TriggerEmitterName;
         float m_TriggerDelaySeconds = 0.0f;

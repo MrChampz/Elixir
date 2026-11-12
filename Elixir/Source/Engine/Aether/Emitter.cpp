@@ -52,6 +52,17 @@ namespace Elixir::Aether
         m_BurstIntervalSeconds = intervalSeconds;
     }
 
+    bool Emitter::SetBurstDelay(const float delaySeconds)
+    {
+        if (!std::isfinite(delaySeconds) || delaySeconds < 0)
+        {
+            EE_CORE_ERROR("Invalid burst delay for emitter '{}'.", m_Name)
+            return false;
+        }
+        m_BurstDelaySeconds = delaySeconds;
+        return true;
+    }
+
     void Emitter::SetTriggerEmitter(std::string emitterName, const float delaySeconds)
     {
         m_TriggerEmitterName = std::move(emitterName);
@@ -77,6 +88,7 @@ namespace Elixir::Aether
         emitter.SpawnRatePerSecond = m_SpawnRate;
         emitter.TriggerDelaySeconds = m_TriggerDelaySeconds;
         emitter.BurstCount = m_BurstCount;
+        emitter.BurstDelaySeconds = m_BurstDelaySeconds;
         emitter.BurstIntervalSeconds = m_BurstIntervalSeconds;
 
         const uint32_t spawnRateParamIndex = FindScopedParameterIndex(

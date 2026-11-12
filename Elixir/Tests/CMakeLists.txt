@@ -35,7 +35,7 @@ if(DXC)
             COMMAND "${CMAKE_COMMAND}" -E make_directory "${SPIRV_OUTPUT_DIR}"
             COMMAND "${DXC}" -spirv -T ${PROFILE} -E main
                     -I "${TEST_SHADER_SOURCE_DIR}" "${SHADER_FILE}" -Fo "${SPIRV_OUTPUT}"
-            DEPENDS "${SHADER_FILE}"
+            DEPENDS "${SHADER_FILE}" ${HLSL_FILES}
             COMMENT "Compiling test shader: ${REL_PATH}"
             VERBATIM
         )

@@ -51,6 +51,20 @@ namespace Elixir::Materials
         return param ? param->Texture : nullptr;
     }
 
+    bool MaterialInstance::SetTextureAtlas(
+        const std::string& name,
+        const Ref<TextureAtlas>& atlas
+    )
+    {
+        return SetOverride(name, SMaterialParameter::MakeTextureAtlas(atlas));
+    }
+
+    Ref<TextureAtlas> MaterialInstance::GetTextureAtlas(const std::string& name) const
+    {
+        const auto* param = Resolve(name);
+        return param ? param->Atlas : nullptr;
+    }
+
     const SMaterialParameter* MaterialInstance::GetResolvedParameter(
         const std::string& name
     ) const

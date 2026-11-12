@@ -464,9 +464,57 @@ namespace Elixir::Aether::Effect
                 );
 
                 desc.BaseColor = glm::vec3(color);
-                desc.Opacity = color.w;
-                desc.Emissive = glm::vec3(emissive);
                 desc.BaseColorTexturePath = ParseString(material, "texture");
+                desc.NormalTexturePath = ParseString(material, "normalTexture");
+
+                desc.Emissive = glm::vec3(emissive);
+                desc.EmissiveTexturePath = ParseString(material, "emissiveTexture");
+                if (HasField(material, "emissiveScale"))
+                    desc.EmissiveScale = RequireFloat(material, "emissiveScale");
+
+                desc.ColorRampTexturePath = ParseString(material, "colorRampTexture");
+
+                desc.RefractionTexturePath = ParseString(material, "refractionTexture");
+                if (HasField(material, "refractionStrength"))
+                    desc.RefractionStrength = RequireFloat(material, "refractionStrength");
+
+                desc.Opacity = color.w;
+
+                if (HasField(material, "atlas"))
+                {
+                    od::object atlas;
+                    if (material["atlas"].get_object().get(atlas))
+                    {
+                        Fail("Material atlas must be an object.");
+                        return std::nullopt;
+                    }
+
+                    desc.Atlas.Columns = RequireUInt(atlas, "columns");
+                    desc.Atlas.Rows = RequireUInt(atlas, "rows");
+
+                    if (HasField(atlas, "interpolate"))
+                        desc.InterpolateAtlas = RequireBoolean(atlas, "interpolate");
+                }
+
+                if (!desc.IsValid())
+                    Fail("Invalid material texture settings.");
+
+                if (HasField(material, "shadingModel"))
+                {
+                    const auto value = RequireString(material, "shadingModel");
+                    const auto model = magic_enum::enum_cast<EMaterialShadingModel>(value);
+
+                    const bool supported = model && (*model == EMaterialShadingModel::Unlit ||
+                        *model == EMaterialShadingModel::Lit);
+
+                    if (!supported)
+                    {
+                        Fail("Particle material shading model must be 'Unlit' or 'Lit': '{}'.", value);
+                        return std::nullopt;
+                    }
+
+                    desc.ShadingModel = *model;
+                }
 
                 if (HasField(material, "blendMode"))
                 {
@@ -534,6 +582,18 @@ namespace Elixir::Aether::Effect
                     if (Failed()) return;
 
                     emitter.SetBurst(burstCount, burstInterval);
+
+                    if (HasField(burst, "delay"))
+                    {
+                        const auto delay = RequireFloat(burst, "delay");
+                        if (Failed()) return;
+
+                        if (!emitter.SetBurstDelay(delay))
+                        {
+                            Fail("'burst.delay' must be nonnegative and finite.");
+                            return;
+                        }
+                    }
                 }
 
                 if (HasField(json, "trigger"))

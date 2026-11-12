@@ -18,8 +18,8 @@ TEST(MaterialResolverTest, CreatesAuthoredMaterialsAndUsesUsageDefaults)
     auto& sprite = system.AddEmitter("Sprite", 8, 0.0f);
     sprite.SetMaterialDescription({
         .BaseColor = { 0.25f, 0.5f, 0.75f },
-        .Opacity = 0.4f,
         .Emissive = {0.1f, 0.0f, 0.0f },
+        .Opacity = 0.4f,
     });
 
     auto& ribbon = system.AddEmitter("Ribbon", 8, 0.0f);

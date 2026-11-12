@@ -371,6 +371,12 @@ namespace Elixir::Materials::Rendering
         );
 
         /**
+         * @brief Reports whether a draw samples a copy of its background.
+         * @param item Prepared draw and compiled material.
+         */
+        static bool RequiresSceneColor(const SPreparedRenderItem& item);
+
+        /**
          * Copies the current color target into a sampled image owned by the active frame
          * slot.
          */

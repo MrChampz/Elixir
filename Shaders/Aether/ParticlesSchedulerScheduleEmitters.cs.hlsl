@@ -168,13 +168,20 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     uint burstCount = emitter.BurstCount;
     float burstInterval = emitter.BurstIntervalSeconds;
 
-    // An interval of zero requests one initial burst per generation. Negative
-    // accumulator marks it as consumed, including for an empty particle pool.
-    if (!isTriggerDriven && burstCount > 0 && burstInterval == 0.0f && state.BurstAccumulator >= 0.0f)
+    // Nonpositive values count down the initial delay; one marks a consumed one-shot.
+    if (!isTriggerDriven &&
+        burstCount > 0 &&
+        burstInterval == 0.0f &&
+        state.BurstAccumulator <= 0.0f)
     {
-        spawnCount = min(maxParticles, spawnCount + burstCount);
-        state.BurstAccumulator = -1.0f;
-        AppendBurstTargets(instance, emitter, writeBufferIndex);
+        state.BurstAccumulator += Time.x;
+
+        if (state.BurstAccumulator >= 0.0f)
+        {
+            spawnCount = min(maxParticles, spawnCount + burstCount);
+            state.BurstAccumulator = 1.0f;
+            AppendBurstTargets(instance, emitter, writeBufferIndex);
+        }
     }
 
     if (!isTriggerDriven && burstCount > 0 && burstInterval > 0.0f)

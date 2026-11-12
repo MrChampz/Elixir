@@ -188,7 +188,9 @@ namespace Elixir::Materials::Rendering
             for (const auto& item : scene.Items)
             {
                 if (item.Proxy->GetShadingModel() == EMaterialShadingModel::Transmission ||
-                    item.Proxy->GetBlendMode() == EMaterialBlendMode::Translucent)
+                    item.Proxy->GetBlendMode() == EMaterialBlendMode::Translucent ||
+                    item.Proxy->GetBlendMode() == EMaterialBlendMode::Additive ||
+                    RequiresSceneColor(item))
                     transparentItems.push_back({ scene.Scene, item });
                 else
                     opaque.Items.push_back(item);
@@ -210,7 +212,10 @@ namespace Elixir::Materials::Rendering
 
         for (const auto& item : transparentItems)
         {
-            if (item.Prepared.Proxy->GetShadingModel() == EMaterialShadingModel::Transmission)
+            const bool needsBackground = RequiresSceneColor(item.Prepared) ||
+                item.Prepared.Proxy->GetShadingModel() == EMaterialShadingModel::Transmission;
+
+            if (needsBackground)
             {
                 cmd->EndRendering();
 
@@ -233,11 +238,23 @@ namespace Elixir::Materials::Rendering
         return result;
     }
 
+    bool Renderer::RequiresSceneColor(const SPreparedRenderItem& item)
+    {
+        if (!item.Item || !item.Proxy)
+            return false;
+
+        const auto compiled = item.Proxy->GetCompiledMaterial();
+        if (!compiled) return false;
+
+        const auto& shader = compiled->GetShader(GetShaderVariant(item.Item->Pass));
+        return shader && shader->HasBinding("sceneColorTexture");
+    }
+
     bool Renderer::CaptureSceneColor(const Ref<CommandBuffer>& cmd)
     {
         if (!(m_ColorTarget->GetUsage() & EImageUsage::TransferSrc))
         {
-            EE_CORE_ERROR("Transmission requires a color target with TransferSrc usage.")
+            EE_CORE_ERROR("Scene-color sampling requires a color target with TransferSrc usage.")
             return false;
         }
 
@@ -400,7 +417,8 @@ namespace Elixir::Materials::Rendering
 
             const auto& item = *prepared.Item;
 
-            if (prepared.Proxy->GetBlendMode() == EMaterialBlendMode::Translucent)
+            if (prepared.Proxy->GetBlendMode() == EMaterialBlendMode::Translucent ||
+                prepared.Proxy->GetBlendMode() == EMaterialBlendMode::Additive)
             {
                 translucentItems.push_back(&prepared);
                 continue;
@@ -673,12 +691,15 @@ namespace Elixir::Materials::Rendering
 
         if (blendMode == EMaterialBlendMode::Translucent)
             builder.EnableAlphaBlending();
+        else if (blendMode == EMaterialBlendMode::Additive)
+            builder.EnableAdditiveBlending();
 
         auto info = builder.GetCreateInfo();
 
         if (pass == EMaterialPass::Surface || pass == EMaterialPass::ParticleMesh || pass == EMaterialPass::ParticleStrand)
         {
             const auto depthWrite = blendMode != EMaterialBlendMode::Translucent &&
+                blendMode != EMaterialBlendMode::Additive &&
                 shadingModel != EMaterialShadingModel::Transmission;
 
             info.DepthStencil.DepthTestEnable = true;

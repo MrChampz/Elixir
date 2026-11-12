@@ -37,6 +37,7 @@ struct VSOutput
     float2 TexCoord1            : TEXCOORD2;
     float3 WorldPos             : POSITION0;
     float4 Color                : COLOR;
+    float2 ParticleTime         : TEXCOORD3;
 };
 
 float3 SafeNormalize(float3 value, float3 fallback)
@@ -259,6 +260,9 @@ VSOutput main(uint vertexId : SV_VertexID)
     output.Valid = 1.0;
     output.TexCoord1 = output.TexCoord;
     output.Color = useEndParticle ? endParticle.Color : startParticle.Color;
+    output.ParticleTime = useEndParticle
+        ? float2(endParticle.Age, endParticle.Lifetime)
+        : float2(startParticle.Age, startParticle.Lifetime);
 
     return output;
 }

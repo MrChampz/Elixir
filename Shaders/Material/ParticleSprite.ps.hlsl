@@ -1,7 +1,13 @@
+// __SHADING_MODEL__
+
 // Shader variant for EMaterialUsage::Particle. The generated graph body writes
 // Surface fields using UV, time, material values and textures.
 
 #include "../Material/NormalSampling.hlsl"
+#include "../Material/NormalTransforms.hlsl"
+#include "../Material/ParticleLighting.hlsl"
+#include "../Material/TextureAtlas.hlsl"
+#include "../Material/SceneSampling.hlsl"
 
 [[vk::binding(0, 0)]]
 cbuffer cbFrame : register(b0)
@@ -11,6 +17,8 @@ cbuffer cbFrame : register(b0)
     float4x4    ViewProj;
     float3      CameraPos;
     float       Time;
+    float4      LightDirection;
+    float4      LightColor;
 };
 
 [[vk::binding(1, 0)]]
@@ -41,11 +49,13 @@ MaterialPushConstants pc;
 
 struct PSInput
 {
-    float4 ClipPos       : SV_POSITION;
-    float2 TexCoord      : TEXCOORD0;
-    float2 TexCoord1     : TEXCOORD1;
-    float3 ViewPos       : POSITION0;
-    float4 Color : COLOR;
+    float4 ClipPos          : SV_POSITION;
+    float2 TexCoord         : TEXCOORD0;
+    float2 TexCoord1        : TEXCOORD1;
+    float3 ViewPos          : POSITION0;
+    float3 WorldPos         : POSITION1;
+    float4 Color            : COLOR;
+    float2 ParticleTime     : TEXCOORD2;
 };
 
 struct Surface
@@ -67,23 +77,40 @@ SamplerState pointWrap;
 [[vk::binding(10, 0)]]
 SamplerState pointClamp;
 
+[[vk::binding(11, 0)]]
+Texture2D sceneColorTexture;
+
+[[vk::binding(12, 0)]]
+SamplerState sceneColorSampler;
+
 float4 main(PSInput input) : SV_Target0
 {
     CompiledMaterial mat = materials[pc.MaterialIndex];
 
     Surface surface;
     surface.BaseColor = float3(1.0f, 1.0f, 1.0f);
-    surface.Normal = float3(0.0f, 0.0f, 1.0f);
     surface.Metallic = 0.0f;
     surface.Roughness = 0.5f;
     surface.Opacity = 1.0f;
     surface.Emissive = float3(0.0f, 0.0f, 0.0f);
 
-    float3 V = normalize(-input.ViewPos);
-    float3 N = normalize(cross(ddy(input.ViewPos), ddx(input.ViewPos)));
-    N = faceforward(N, -V, N);
+    const float3 V = normalize(CameraPos - input.WorldPos);
+    const float3 geometricNormal = normalize(cross(ddy(input.WorldPos), ddx(input.WorldPos)));
+    float3 N = faceforward(geometricNormal, -V, geometricNormal);
+
+#if MATERIAL_TANGENT_SPACE_NORMAL
+    surface.Normal = float3(0.0f, 0.0f, 1.0f);
+#else
+    surface.Normal = N;
+#endif
 
     // __GRAPH_BODY__
+
+#if MATERIAL_TANGENT_SPACE_NORMAL
+    N = TangentNormalToWorld(surface.Normal, N, input.WorldPos, input.TexCoord);
+#else
+    N = normalize(surface.Normal);
+#endif
 
     static const uint MATERIAL_BLEND_MASK = 1u;
     if (mat.BlendMode == MATERIAL_BLEND_MASK)
@@ -91,5 +118,16 @@ float4 main(PSInput input) : SV_Target0
         clip(surface.Opacity - mat.AlphaCutoff);
     }
 
-    return float4(surface.BaseColor + surface.Emissive, surface.Opacity);
+    const float3 color = EvaluateParticleLighting(
+        surface.BaseColor,
+        surface.Emissive,
+        N,
+        V,
+        surface.Roughness,
+        surface.Metallic,
+        LightDirection.xyz,
+        LightColor
+    );
+
+    return float4(color, surface.Opacity);
 }

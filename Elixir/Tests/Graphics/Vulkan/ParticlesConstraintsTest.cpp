@@ -393,3 +393,59 @@ TEST(ParticlesConstraintsTest, SolverAlternatesModulesForRibbonAndStrandEmitters
         EXPECT_NEAR(particle.VelocityAge.w, 1.0f / 60, 0.00001f);
     }
 }
+
+TEST(ParticlesConstraintsTest, SimulatorUploadsDelayedBurstAndLifetimeFieldsAtShaderOffsets)
+{
+    const auto context = VulkanTestContext::Get().GetGraphicsContext();
+    ShaderLoader loader(context);
+    std::string error;
+    const auto system = Aether::Effect::ParseEffect(
+        R"({"name":"Emitter layout","emitters":[{
+            "name":"Delayed","maxParticles":3,"spawnRate":0,
+            "burst":{"count":2,"interval":0,"delay":0.5},
+            "spawnModules":[{"type":"SetLifetime","min":1,"max":1}]
+        }]})",
+        &error
+    );
+    ASSERT_TRUE(system) << error;
+    TestInstanceRegistry registry;
+    const auto instance = registry.CreateRegisteredInstance(system);
+    ASSERT_TRUE(instance);
+    Aether::Rendering::FrameSubmission submission;
+    ASSERT_TRUE(submission.Submit(*instance));
+    Aether::Core::SResourcePoolLimits limits;
+    limits.ParticleCapacity = 16;
+    Aether::Simulation::Simulator simulator(context, &loader, limits);
+    std::array<SConnectionParticle, 3> particles{};
+    auto info = StagingBuffer::CreateBufferInfo(sizeof(particles), nullptr);
+    info.Usage = EBufferUsage::TransferDst;
+    const Ref<StagingBuffer> readback = CreateRef<VulkanStagingBuffer>(context, info);
+    const std::array steps{0.25f, 0.25f, 0.25f, 0.75f};
+    const std::array expectedAlive{0u, 2u, 2u, 0u};
+    for (size_t step = 0; step < steps.size(); ++step)
+    {
+        simulator.BeginFrame(Timestep(steps[step]));
+        const auto command = context->GetUploadCommandBuffer();
+        command->Begin();
+        const auto frame = simulator.Simulate(submission, command);
+        ASSERT_TRUE(frame);
+        ASSERT_EQ(frame->GetItems().size(), 1u);
+        ASSERT_EQ(frame->GetResources().size(), 1u);
+        const auto& buffer = frame->GetResources()[0].ParticleStateBuffer;
+        std::array<SBufferCopy, 1> regions{{{
+            .SrcOffset = frame->GetItems()[0].Allocation.Particles.Offset *
+                sizeof(SConnectionParticle),
+            .Size = sizeof(particles)
+        }}};
+        buffer->Barrier(command, EPipelineStage::Transfer, EPipelineAccess::TransferRead);
+        buffer->Copy(command, readback, regions);
+        command->End();
+        command->Flush();
+        std::memcpy(particles.data(), readback->Map(), sizeof(particles));
+        readback->Unmap();
+        uint32_t alive = 0;
+        for (const auto& particle : particles)
+            if (particle.Metadata.w > 0) ++alive;
+        EXPECT_EQ(alive, expectedAlive[step]) << "simulation step " << step;
+    }
+}

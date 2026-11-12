@@ -32,6 +32,9 @@
 
 
 
+#include <Engine/Graphics/Texture.h>
+#include <Engine/Graphics/Sampler.h>
+#include <Engine/Graphics/TextureLoader.h>
 using namespace Elixir;
 using namespace Elixir::Vulkan;
 
@@ -224,9 +227,13 @@ TEST(VulkanShaderTest, InitialBurstRunsOnceAndPeriodicAndTriggeredBurstsKeepThei
     const auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
     ASSERT_TRUE(pipeline);
     // Mirror the emitter, instance and scheduler layouts with native four-byte words.
+    constexpr size_t burstDelayWord = 11;
+    constexpr size_t burstIntervalWord = 12;
+    constexpr size_t burstCountWord = 13;
+    constexpr size_t triggerDrivenWord = 14;
     std::array<uint32_t, 16> emitter{};
     emitter[1] = 64; // particle capacity
-    emitter[12] = 64; // burst count
+    emitter[burstCountWord] = 64; // burst count
     std::array<uint32_t, 15> instance{};
     instance[10] = 64;
     instance[11] = 1;
@@ -299,12 +306,51 @@ TEST(VulkanShaderTest, InitialBurstRunsOnceAndPeriodicAndTriggeredBurstsKeepThei
     EXPECT_EQ(request[1], 64u); // reset starts a new initial burst
     EXPECT_EQ(request[3], 2u);
 
+    // Reset reads the delay at byte 44 of the 64-byte GPU emitter layout.
+    const auto init = loader.LoadShader(
+        "./Shaders/Aether",
+        "ParticlesSchedulerInitEmitters",
+        EShaderStage::Compute
+    );
+    ASSERT_TRUE(init);
+    const auto initPipeline = ComputePipeline::Create(context, {.Shader = init});
+    init->SetPushConstant("pc", &index, sizeof(index));
+    init->BindStorageBuffer("emitters", emitters);
+    init->BindStorageBuffer("instances", instances);
+    init->BindStorageBuffer("emitterStates", states);
+    init->BindStorageBuffer("schedulerStates", schedulers);
+    init->BindStorageBuffer("triggerQueueStates", queueBuffer);
+    emitter[burstDelayWord] = std::bit_cast<uint32_t>(0.5f);
+    emitters->UpdateData(emitter.data(), sizeof(emitter));
+    scheduler[2] = 1;
+    schedulers->UpdateData(scheduler.data(), sizeof(scheduler));
+    const auto reset = context->GetUploadCommandBuffer();
+    reset->Begin();
+    states->Barrier(
+        reset,
+        EPipelineStage::ComputeShader,
+        EPipelineAccess::ShaderRead | EPipelineAccess::ShaderWrite
+    );
+    initPipeline->Bind(reset);
+    reset->Dispatch(1);
+    reset->End();
+    reset->Flush();
+    scheduler[2] = 0;
+    schedulers->UpdateData(scheduler.data(), sizeof(scheduler));
+    // Delay counts down without consuming or repeating a one-shot burst.
+    dispatch(0.25f);
+    EXPECT_EQ(request[1], 0u);
+    dispatch(0.25f);
+    EXPECT_EQ(request[1], 64u);
+    dispatch(1.0f);
+    EXPECT_EQ(request[1], 0u);
+
     // A positive interval still waits for the interval and repeats.
     state = {};
     state[4] = 2;
     states->UpdateData(state.data(), sizeof(state));
-    emitter[11] = std::bit_cast<uint32_t>(0.5f);
-    emitter[12] = 2;
+    emitter[burstIntervalWord] = std::bit_cast<uint32_t>(0.5f);
+    emitter[burstCountWord] = 2;
     emitters->UpdateData(emitter.data(), sizeof(emitter));
     dispatch(0.25f);
     EXPECT_EQ(request[1], 0u);
@@ -317,8 +363,8 @@ TEST(VulkanShaderTest, InitialBurstRunsOnceAndPeriodicAndTriggeredBurstsKeepThei
     state = {};
     state[4] = 2;
     states->UpdateData(state.data(), sizeof(state));
-    emitter[11] = 0;
-    emitter[13] = 1;
+    emitter[burstIntervalWord] = 0;
+    emitter[triggerDrivenWord] = 1;
     emitters->UpdateData(emitter.data(), sizeof(emitter));
     dispatch(0.1f);
     EXPECT_EQ(request[1], 0u);
@@ -356,8 +402,8 @@ TEST(VulkanShaderTest, LifetimeDeathPolicyPreservesSimulationNormalizedAgeAndExp
         roots[index * 6 + 4] = {1, 1, 1, 1};
         roots[index * 6 + 5] = {std::bit_cast<float>(index), 0, 0.25f, 1};
         emittersData[index * 16 + 1] = 1;
-        // The lifetime flag remains at word 14 in the 64-byte emitter layout.
-        emittersData[index * 16 + 14] = index == 1 ? 1 : 0;
+        // The lifetime flag follows trigger state at word 15 of the 64-byte layout.
+        emittersData[index * 16 + 15] = index == 1 ? 1 : 0;
     }
     roots[2 * 6].x = 2; // explicit kill outside the box
     emittersData[2 * 16 + 4] = 0;
@@ -709,4 +755,311 @@ TEST(VulkanShaderTest, StrandRendererUsesDefaultsWithoutAuthoredRenderConfig)
     context->WaitDeviceIdle();
     EXPECT_EQ(result.DrawCount, 1u);
     EXPECT_TRUE(manager.Remove(instance));
+}
+
+
+TEST(VulkanShaderTest, AtlasSamplingClampsCellsAndInterpolatesWithoutBleeding)
+{
+    const auto context = VulkanTestContext::Get().GetGraphicsContext();
+    ShaderLoader loader(context);
+    const auto shader = loader.LoadShader(
+        ELIXIR_TEST_SHADER_DIR,
+        "TextureAtlasValidation",
+        EShaderStage::Compute
+    );
+    ASSERT_TRUE(shader);
+    const std::array<uint8_t, 16> pixels{
+        255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255
+    };
+    STexture2DCreateInfo info;
+    info.Format = EImageFormat::R8G8B8A8_UNORM;
+    info.Width = info.Height = 2;
+    info.InitialData = pixels.data();
+    const auto texture = Texture2D::Create(context, info);
+    const auto sampler = Sampler::Create(context, {
+        .MagFilter = ESamplerFilter::Linear,
+        .MinFilter = ESamplerFilter::Linear,
+        .AddressModeU = ESamplerAddressMode::ClampToEdge,
+        .AddressModeV = ESamplerAddressMode::ClampToEdge
+    });
+    std::array<glm::vec4, 16> values{};
+    const auto output = DynamicStorageBuffer::Create(context, sizeof(values), values.data());
+    shader->BindImage("atlas", texture->GetImage());
+    shader->BindSampler("linearClamp", sampler);
+    shader->BindStorageBuffer("results", output);
+    const auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
+    const auto cmd = context->GetUploadCommandBuffer();
+    cmd->Begin();
+    pipeline->Bind(cmd);
+    cmd->Dispatch(1);
+    const VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
+        VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT};
+    vkCmdPipelineBarrier(
+        static_cast<VulkanCommandBuffer*>(cmd.get())->GetVulkanCommandBuffer(),
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_HOST_BIT,
+        0,
+        1,
+        &barrier,
+        0,
+        nullptr,
+        0,
+        nullptr
+    );
+    cmd->End();
+    cmd->Flush();
+    std::memcpy(values.data(), output->Map(), sizeof(values));
+    output->Unmap();
+    const std::array<glm::vec4, 16> expected{
+        glm::vec4{1, 0, 0, 1}, glm::vec4{0, 1, 0, 1}, glm::vec4{0, 0, 1, 1},
+        glm::vec4{1, 1, 1, 1}, glm::vec4{0.5f, 0.5f, 0, 1}, glm::vec4{1, 0, 0, 1},
+        glm::vec4{1, 1, 1, 1}, glm::vec4{1, 0, 0, 1},
+        glm::vec4{1, 0, 0, 1}, glm::vec4{1, 0, 0, 1}, glm::vec4{0, 1, 0, 1},
+        glm::vec4{0, 0, 1, 1}, glm::vec4{1, 1, 1, 1}, glm::vec4{1, 1, 1, 1},
+        glm::vec4{0, 0.5f, 0.5f, 1}, glm::vec4{1, 1, 1, 1}
+    };
+    for (size_t sample = 0; sample < values.size(); ++sample)
+        for (uint32_t component = 0; component < 4; ++component)
+            EXPECT_NEAR(values[sample][component], expected[sample][component], 0.001f)
+                << "sample " << sample;
+}
+
+
+TEST(VulkanShaderTest, NonDivisibleAtlasGridsKeepFilteringInsideTexelCells)
+{
+    const auto context = VulkanTestContext::Get().GetGraphicsContext();
+    ShaderLoader loader(context);
+    const auto shader = loader.LoadShader(
+        ELIXIR_TEST_SHADER_DIR,
+        "TextureAtlasEdgesValidation",
+        EShaderStage::Compute
+    );
+    ASSERT_TRUE(shader);
+    for (const uint32_t width : {4u, 4096u})
+    {
+        const uint32_t columns = width == 4 ? 3 : 10;
+        constexpr uint32_t height = 4;
+        constexpr uint32_t rows = 3;
+        const uint32_t frames = columns * rows;
+        std::vector<glm::vec4> colors(frames);
+        std::vector<uint8_t> pixels(width * height * 4);
+        for (uint32_t frame = 0; frame < frames; ++frame)
+        {
+            const std::array<uint8_t, 4> color{
+                uint8_t((frame * 73 + 17) % 256),
+                uint8_t((frame * 37 + 53) % 256),
+                uint8_t((frame * 19 + 97) % 256),
+                255
+            };
+            colors[frame] = glm::vec4(color[0], color[1], color[2], color[3]) / 255.0f;
+            const uint32_t column = frame % columns;
+            const uint32_t row = frame / columns;
+            for (uint32_t y = row * height / rows; y < (row + 1) * height / rows; ++y)
+                for (uint32_t x = column * width / columns;
+                    x < (column + 1) * width / columns; ++x)
+                    std::memcpy(&pixels[(y * width + x) * 4], color.data(), color.size());
+        }
+        STexture2DCreateInfo info;
+        info.Format = EImageFormat::R8G8B8A8_UNORM;
+        info.Width = width;
+        info.Height = height;
+        info.InitialData = pixels.data();
+        const auto texture = Texture2D::Create(context, info);
+        const auto sampler = Sampler::Create(context, {
+            .MagFilter = ESamplerFilter::Linear,
+            .MinFilter = ESamplerFilter::Linear,
+            .AddressModeU = ESamplerAddressMode::ClampToEdge,
+            .AddressModeV = ESamplerAddressMode::ClampToEdge
+        });
+        std::vector<glm::vec4> values(frames * 6);
+        const auto byteCount = values.size() * sizeof(glm::vec4);
+        const auto output = DynamicStorageBuffer::Create(context, byteCount, values.data());
+        shader->BindImage("atlas", texture->GetImage());
+        shader->BindSampler("linearClamp", sampler);
+        shader->BindStorageBuffer("results", output);
+        const auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
+        const auto cmd = context->GetUploadCommandBuffer();
+        cmd->Begin();
+        pipeline->Bind(cmd);
+        cmd->Dispatch(1);
+        const VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
+            VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT};
+        vkCmdPipelineBarrier(
+            static_cast<VulkanCommandBuffer*>(cmd.get())->GetVulkanCommandBuffer(),
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_HOST_BIT,
+            0,
+            1,
+            &barrier,
+            0,
+            nullptr,
+            0,
+            nullptr
+        );
+        cmd->End();
+        cmd->Flush();
+        std::memcpy(values.data(), output->Map(), byteCount);
+        output->Unmap();
+        for (uint32_t frame = 0; frame < frames; ++frame)
+            for (uint32_t sample = 0; sample < 6; ++sample)
+            {
+                const auto expected = sample == 5
+                    ? (colors[frame] + colors[std::min(frame + 1, frames - 1)]) * 0.5f
+                    : colors[frame];
+                for (uint32_t component = 0; component < 4; ++component)
+                    EXPECT_NEAR(
+                        values[frame * 6 + sample][component],
+                        expected[component],
+                        0.001f
+                    )
+                        << "width " << width << ", frame " << frame << ", sample " << sample;
+            }
+    }
+}
+
+
+TEST(VulkanShaderTest, MigratedEffectsRenderAdditiveAndRefractiveMaterialsThroughAether)
+{
+    const auto context = VulkanTestContext::Get().GetGraphicsContext();
+    ShaderLoader loader(context);
+    TextureLoader::Initialize(context);
+    const auto root = std::filesystem::path(__FILE__).parent_path().parent_path()
+        .parent_path().parent_path().parent_path();
+    for (const auto* name : {"DistortionTest", "NS_Explosion_01", "CinematicFX_Showcase"})
+    {
+        Materials::MaterialRegistry registry;
+        Materials::MaterialSystem materials(
+            context,
+            {},
+            &loader,
+            context->GetRenderTarget(),
+            context->GetDepthStencilRenderTarget()
+        );
+        Aether::Manager manager(context, &loader, registry, materials);
+        const auto system = Aether::Manager::LoadEffect(
+            root / "Assets/VFX" / (std::string(name) + ".json")
+        );
+        ASSERT_TRUE(system) << name;
+        for (const auto& emitter : system->GetEmitters())
+        {
+            const auto& materialDescription = emitter->GetMaterialDescription();
+            ASSERT_TRUE(materialDescription) << name << ": " << emitter->GetName();
+            auto description = *materialDescription;
+            for (auto* path : {&description.BaseColorTexturePath,
+                &description.EmissiveTexturePath, &description.ColorRampTexturePath,
+                &description.NormalTexturePath, &description.RefractionTexturePath})
+                if (!path->empty()) *path = (root / *path).string();
+            emitter->SetMaterialDescription(description);
+        }
+        const auto instance = system->CreateInstance();
+        ASSERT_TRUE(manager.Add(instance));
+        PerspectiveCamera camera(45, 16.0f / 9, 0.01f, 100);
+        camera.SetPosition({0, 0, 4});
+        Materials::Rendering::SRenderResult result;
+        // Run beyond the authored three-second burst intervals.
+        for (int frame = 0; frame < 100; ++frame)
+        {
+            context->RenderFrame([&]
+            {
+                materials.BeginFrame();
+                manager.BeginFrame(Timestep(1.0f / 30));
+                manager.Render(camera, context->GetRenderTarget());
+                result = materials.RenderFrame();
+            });
+            ASSERT_TRUE(context->RunRenderTaskAndWait([] {}));
+        }
+        context->WaitDeviceIdle();
+        EXPECT_EQ(result.DrawCount, system->GetEmitters().size()) << name;
+        EXPECT_EQ(result.MaterialCount, system->GetEmitters().size()) << name;
+        EXPECT_TRUE(manager.Remove(instance));
+    }
+}
+
+TEST(VulkanShaderTest, SurfaceAndParticleDirectLightingUsesTheSharedBRDF)
+{
+    const auto context = VulkanTestContext::Get().GetGraphicsContext();
+    ShaderLoader loader(context);
+    const auto shader = loader.LoadShader(
+        ELIXIR_TEST_SHADER_DIR,
+        "DirectLightingValidation",
+        EShaderStage::Compute
+    );
+    ASSERT_TRUE(shader);
+    std::array<glm::vec4, 4> values{};
+    const auto output = DynamicStorageBuffer::Create(context, sizeof(values), values.data());
+    shader->BindStorageBuffer("results", output);
+    const auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
+    const auto cmd = context->GetUploadCommandBuffer();
+    cmd->Begin();
+    pipeline->Bind(cmd);
+    cmd->Dispatch(1);
+    const VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
+        VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT};
+    vkCmdPipelineBarrier(
+        static_cast<VulkanCommandBuffer*>(cmd.get())->GetVulkanCommandBuffer(),
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_HOST_BIT,
+        0,
+        1,
+        &barrier,
+        0,
+        nullptr,
+        0,
+        nullptr
+    );
+    cmd->End();
+    cmd->Flush();
+    std::memcpy(values.data(), output->Map(), sizeof(values));
+    output->Unmap();
+    for (uint32_t component = 0; component < 3; ++component)
+    {
+        EXPECT_NEAR(values[0][component], 0.96f / 3.14159265359f, 0.0001f);
+        EXPECT_NEAR(values[1][component], 0.05093f, 0.0001f);
+        EXPECT_FLOAT_EQ(values[2][component], 0);
+        EXPECT_FLOAT_EQ(values[3][component], 0);
+    }
+}
+
+TEST(VulkanShaderTest, SpriteVertexUVsUseTopLeftOriginForBothCoordinateChannels)
+{
+    const auto context = VulkanTestContext::Get().GetGraphicsContext();
+    ShaderLoader loader(context);
+    const auto shader = loader.LoadShader(
+        ELIXIR_TEST_SHADER_DIR,
+        "ParticleSpriteUVValidation",
+        EShaderStage::Compute
+    );
+    ASSERT_TRUE(shader);
+    std::array<glm::vec4, 6> values{};
+    const auto output = DynamicStorageBuffer::Create(context, sizeof(values), values.data());
+    shader->BindStorageBuffer("results", output);
+    const auto pipeline = ComputePipeline::Create(context, {.Shader = shader});
+    const auto cmd = context->GetUploadCommandBuffer();
+    cmd->Begin();
+    pipeline->Bind(cmd);
+    cmd->Dispatch(1);
+    const VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER, nullptr,
+        VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT};
+    vkCmdPipelineBarrier(
+        static_cast<VulkanCommandBuffer*>(cmd.get())->GetVulkanCommandBuffer(),
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_HOST_BIT,
+        0,
+        1,
+        &barrier,
+        0,
+        nullptr,
+        0,
+        nullptr
+    );
+    cmd->End();
+    cmd->Flush();
+    std::memcpy(values.data(), output->Map(), sizeof(values));
+    output->Unmap();
+    const std::array<glm::vec4, 6> expected{
+        glm::vec4{0, 1, 0, 1}, glm::vec4{1, 0, 1, 0}, glm::vec4{1, 1, 1, 1},
+        glm::vec4{0, 1, 0, 1}, glm::vec4{0, 0, 0, 0}, glm::vec4{1, 0, 1, 0}
+    };
+    for (size_t vertex = 0; vertex < values.size(); ++vertex)
+        EXPECT_EQ(values[vertex], expected[vertex]) << "vertex " << vertex;
 }

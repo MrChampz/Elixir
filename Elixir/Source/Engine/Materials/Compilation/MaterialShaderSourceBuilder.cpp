@@ -9,11 +9,16 @@ namespace Elixir::Materials::Compilation
 {
     namespace
     {
-        std::string ValueExpression(const SCompiledParameter& parameter)
+        /**
+         * @brief Builds a numeric parameter expression for a validated value slot.
+         * @param slot Index in the material value array.
+         * @param type Numeric type selected by the parameter schema.
+         */
+        std::string ValueExpression(const uint32_t slot, const EMaterialValueType type)
         {
-            std::string value = "mat.Values[" + std::to_string(parameter.Slot) + "]";
+            std::string value = "mat.Values[" + std::to_string(slot) + "]";
 
-            switch (parameter.ValueType)
+            switch (type)
             {
                 case EMaterialValueType::Float:
                     return value + ".x";
@@ -62,12 +67,21 @@ namespace Elixir::Materials::Compilation
         else
         {
             environment.Color = "input.Color";
+
+            if (stage == EShaderStage::Pixel)
+            {
+                environment.ParticleAge = "input.ParticleTime.x";
+                environment.ParticleLifetime = "input.ParticleTime.y";
+            }
         }
 
         if (stage == EShaderStage::Pixel)
         {
             environment.Normal = "N";
             environment.ViewDirection = "V";
+            environment.ScreenPosition = "input.ClipPos.xy";
+            environment.SceneColorTexture = "sceneColorTexture";
+            environment.SceneColorSampler = "sceneColorSampler";
         }
 
         return environment;
@@ -85,11 +99,36 @@ namespace Elixir::Materials::Compilation
 
         for (const auto& parameter : compiled.Parameters)
         {
-            if (parameter.Kind == EMaterialParameterKind::Texture)
+            const bool needsTexture = parameter.Kind == EMaterialParameterKind::Texture ||
+                parameter.Kind == EMaterialParameterKind::TextureAtlas;
+
+            const bool needsValue = parameter.Kind == EMaterialParameterKind::Value ||
+                parameter.Kind == EMaterialParameterKind::TextureAtlas;
+
+            if (!needsTexture && !needsValue)
+                return { .Diagnostics = "Unsupported material parameter kind." };
+
+            if ((needsTexture && !parameter.TextureSlot) ||
+                (needsValue && !parameter.ValueSlot))
+            {
+                return {
+                    .Diagnostics = "Compiled material parameter is missing a storage slot."
+                };
+            }
+
+            if (parameter.TextureSlot)
                 bindings.Textures[parameter.Name] =
-                    "mat.TextureIndices[" + std::to_string(parameter.Slot) + "]";
-            else
-                bindings.Values[parameter.Name] = ValueExpression(parameter);
+                    "mat.TextureIndices[" + std::to_string(*parameter.TextureSlot) + "]";
+
+            if (parameter.Kind == EMaterialParameterKind::TextureAtlas)
+                bindings.AtlasLayouts[parameter.Name] =
+                    "mat.Values[" + std::to_string(*parameter.ValueSlot) + "]";
+
+            if (parameter.Kind == EMaterialParameterKind::Value)
+                bindings.Values[parameter.Name] = ValueExpression(
+                    *parameter.ValueSlot,
+                    parameter.ValueType
+                );
         }
 
         const auto environment = CreateEnvironment(compiled.GetUsage(), stage);
